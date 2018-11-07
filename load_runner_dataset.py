@@ -23,7 +23,6 @@ def launch(dataset_path, group_name, group_description):
     # Loop over structures in the dataset_path, storing the nodes then adding them to the group
     i = 0
     while True:
-        #print "Storing structure index: {}".format(i)
         try:
             ase_structure = ase.io.read(dataset_path, index=i, format="runner")
         except StopIteration:
