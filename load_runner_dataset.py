@@ -37,6 +37,7 @@ def launch(dataset_path, group_name, group_description):
             comment = ase_structure.comment.strip().split()[-1][3:]
             aiida_structure_stored.set_extra("comment", comment)
         except AttributeError:
+            print "could not set comment on {}".format(ase_structure)
             pass
 
         # add the structure to the group
@@ -44,5 +45,12 @@ def launch(dataset_path, group_name, group_description):
         g.store()
         i += 1
 
+
 if __name__ == "__main__":
+    try:
+        ase.io.read("", format="runner")
+    except ValueError:
+        raise ValueError("You need a version of ase that can read runner files")
+    except IOError:
+        pass
     launch()
