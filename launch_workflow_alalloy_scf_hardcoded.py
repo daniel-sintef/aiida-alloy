@@ -144,7 +144,7 @@ def wf_setupparams(base_parameter, structure,
         pseudos = get_pseudos_from_structure(structure, pseudo_familyname.value)
         nelec = get_numelectrons_structure_upffamily(structure, pseudos)
         nbnd = nelec * nume2bnd_ratio.value
-        nbnd = min(nbnd, 20) # minimum of 20 bands to avoid certain crashes
+        nbnd = max(nbnd, 20) # minimum of 20 bands to avoid certain crashes
         parameter_dict = base_parameter.get_dict()
         parameter_dict['SYSTEM']['nbnd'] = nbnd
         parameters = ParameterData(dict=parameter_dict)
