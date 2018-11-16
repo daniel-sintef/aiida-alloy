@@ -156,7 +156,7 @@ def wf_setupparams(base_parameter, structure,
 def launch():
     from aiida.orm.group import Group
     from aiida.orm.utils import load_node, WorkflowFactory
-    from aiida.orm.data.base import Float, Int, Str
+    from aiida.orm.data.base import Bool, Float, Int, Str
     from aiida.orm.data.parameter import ParameterData
     from aiida.work.launch import submit
 
@@ -167,11 +167,12 @@ def launch():
     code = load_node(code_node)
     #code = "pw-v6.3@daint"
 
-    structure_group_name = "allatoms_fiverandom1"
+    #structure_group_name = "allatoms_fiverandom1"
+    structure_group_name = "Al6xxxDB_structures"
     structure_group = Group.get_from_string(structure_group_name)
     # NOTE: in the real version we are likely to be passed groups, not names
 
-    workchain_group_name = "allatoms_fiverandom1_calc1"
+    workchain_group_name = "Al6xxxDB_structures_calc"
     workchain_group = Group.get_or_create(name=workchain_group_name)[0]
     # NOTE: in the real version we are likely to be passed groups, not names
 
@@ -184,7 +185,9 @@ def launch():
 
     nume2bnd_ratio = 0.75
 
-    run_debug = False
+    run_debug = True
+
+    clean_workdir = Bool(True)
 
     max_wallclock_seconds=6*60*60 # Try to scale nodes s.t. we definitely finish in time
     ######################################################################
@@ -215,7 +218,7 @@ def launch():
         num_machines = get_nummachines(structure)
         options_dict = {
             'max_wallclock_seconds': max_wallclock_seconds,
-            'resources': {'num_machines': num_machines}
+            'resources': {'num_machines': num_machines},
         }
         if run_debug:
             num_machines = 2
@@ -236,7 +239,8 @@ def launch():
             'kpoints': kpoints,
             'parameters': parameters,
             'options': workchain_options,
-            'settings': settings
+            'settings': settings,
+            'clean_workdir' : clean_workdir
         }
 
         PwBaseWorkChain = WorkflowFactory('quantumespresso.pw.base')
