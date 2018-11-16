@@ -185,7 +185,7 @@ def launch():
 
     nume2bnd_ratio = 0.75
 
-    run_debug = True
+    run_debug = False
 
     clean_workdir = Bool(True)
 
