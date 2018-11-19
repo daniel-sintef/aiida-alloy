@@ -190,6 +190,8 @@ def launch():
     clean_workdir = Bool(True)
 
     max_wallclock_seconds=6*60*60 # Try to scale nodes s.t. we definitely finish in time
+
+    launches_remaining = 500
     ######################################################################
 
     # Load all the structures in the structure group, not-yet run in workchain_group_name
@@ -197,13 +199,14 @@ def launch():
                                 structure_group_name,
                                 workchain_group_name=workchain_group_name
     )
-
     if len(uncalculated_structures) == 0:
         print("All structures in {} already have associated workchains in "
               "the group {}".format(structure_group_name, workchain_group_name))
         sys.exit()
 
     for structure in uncalculated_structures:
+        from timeit import default_timer as timer
+        start = timer()
 
         # determine number of bands & setup the parameters
         parameters = wf_setupparams(base_parameter,
@@ -248,7 +251,15 @@ def launch():
         if run_debug:
             sys.exit()
         workchain_group.add_nodes([node])
-        print "WorkChain: {} submitted".format(node)
+
+        end = timer()
+        time_elapsed = end - start
+        print "WorkChain: {} submitted, took {}s".format(node, time_elapsed)
+
+        launches_remaining -= 1
+        print "launches_remaining {}".format(launches_remaining)
+        if launches_remaining == 0:
+            sys.exit()
 
 
 if __name__ == "__main__":
