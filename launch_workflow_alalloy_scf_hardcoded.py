@@ -202,7 +202,7 @@ def launch():
 
     max_wallclock_seconds=6*60*60 # Try to scale nodes s.t. we definitely finish in time
 
-    max_active_calculations = 100
+    max_active_calculations = 150
     sleep_interval = 60*10
     ######################################################################
 
@@ -262,7 +262,10 @@ def launch():
         workchain_options = ParameterData(dict=options_dict)
 
         nk = get_nk(num_machines, code)
-        settings_dict = {'cmdline': ['-nk', nk]}
+        settings_dict = {
+            'cmdline': ['-nk', nk],
+            'no_bands': True
+            }
         settings = ParameterData(dict=settings_dict)
 
         # setup inputs & submit workchain
