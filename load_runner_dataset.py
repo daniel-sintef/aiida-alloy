@@ -6,9 +6,6 @@ from aiida.orm.data.structure import StructureData
 import ase
 import ase.io
 import click
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib
 
 
 @click.command()
@@ -32,12 +29,23 @@ def launch(dataset_path, group_name, group_description):
         aiida_structure.set_ase(ase_structure)
         aiida_structure_stored = aiida_structure.store()
 
-        # add in the comment line if possible
+        # add in the dataset_path line if possible
         try:
-            comment = ase_structure.comment.strip().split()[-1][3:]
-            aiida_structure_stored.set_extra("comment", comment)
+            structure_path = ase_structure.comment.strip().split()[-1][3:]
+            aiida_structure_stored.set_extra("structure_path", structure_path)
         except AttributeError:
-            print "could not set comment on {}".format(ase_structure)
+            print "could not set structure_path on {}".format(ase_structure)
+            pass
+
+        # add in the chemical formula and number of atoms if possible
+        try:
+            aiida_structure_stored.set_extra("num_atoms",
+                                             len(ase_structure))
+            aiida_structure_stored.set_extra("chem_formula",
+                          ase_structure.get_chemical_formula())
+        except AttributeError:
+            print "could not set either num_atoms or chemical_formula " \
+                  " on {}".format(ase_structure)
             pass
 
         # add the structure to the group
