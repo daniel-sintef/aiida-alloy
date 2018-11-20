@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import click
+import time
 from aiida.cmdline.params import options, arguments
 from aiida.cmdline.params.types import DataParamType
 from aiida.cmdline.utils import decorators
@@ -37,6 +38,16 @@ def retrieve_alluncalculated_structures(structure_group_name,
 
     res = [x[0] for x in qb.all()]
     return res
+
+def retrieve_numactive_calculations():
+    from aiida.orm.calculation import JobCalculation
+    from aiida.orm.querybuilder import QueryBuilder
+    qb = QueryBuilder()
+    qb.append(JobCalculation,
+              filters={'attributes.process_state':
+                       {'!in': ['finished', 'excepted', 'killed']}}
+    )
+    return len(qb.all())
 
 
 def get_numelectrons_structure_upffamily(structure, pseudos):
@@ -191,7 +202,8 @@ def launch():
 
     max_wallclock_seconds=6*60*60 # Try to scale nodes s.t. we definitely finish in time
 
-    launches_remaining = 500
+    max_active_calculations = 100
+    sleep_interval = 60*10
     ######################################################################
 
     # Load all the structures in the structure group, not-yet run in workchain_group_name
@@ -204,7 +216,26 @@ def launch():
               "the group {}".format(structure_group_name, workchain_group_name))
         sys.exit()
 
+    # determine number of calculations to submit
+    running_calculations = retrieve_numactive_calculations()
+    calcs_to_submit = max_active_calculations - running_calculations
+
+    # submit calculations
     for structure in uncalculated_structures:
+
+        # ensure no more than the max number of calcs are submitted
+        while (calcs_to_submit <= 0):
+            running_calculations = retrieve_numactive_calculations()
+            calcs_to_submit = max_active_calculations - running_calculations
+            #TODO find python equivalent of a wait
+            if calcs_to_submit <= 0:
+                print("{} calcs running,"
+                      "max num calcs {} waiting....".format(
+                          running_calculations, max_active_calculations))
+                time.sleep(sleep_interval)
+
+
+        # start timer to inspect job submission times
         from timeit import default_timer as timer
         start = timer()
 
@@ -256,10 +287,8 @@ def launch():
         time_elapsed = end - start
         print "WorkChain: {} submitted, took {}s".format(node, time_elapsed)
 
-        launches_remaining -= 1
-        print "launches_remaining {}".format(launches_remaining)
-        if launches_remaining == 0:
-            sys.exit()
+        calcs_to_submit -= 1
+
 
 
 if __name__ == "__main__":
