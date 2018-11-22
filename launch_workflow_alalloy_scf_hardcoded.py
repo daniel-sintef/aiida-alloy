@@ -202,7 +202,7 @@ def launch():
 
     max_wallclock_seconds=6*60*60 # Try to scale nodes s.t. we definitely finish in time
 
-    max_active_calculations = 150
+    max_active_calculations = 300
     sleep_interval = 60*10
     ######################################################################
 
@@ -227,8 +227,7 @@ def launch():
         while (calcs_to_submit <= 0):
             running_calculations = retrieve_numactive_calculations()
             calcs_to_submit = max_active_calculations - running_calculations
-            #TODO find python equivalent of a wait
-            if calcs_to_submit <= 0:
+            if calcs_to_submit <= 0: # in case jobs finished during submission
                 print("{} calcs running,"
                       "max num calcs {} waiting....".format(
                           running_calculations, max_active_calculations))
@@ -277,7 +276,7 @@ def launch():
             'parameters': parameters,
             'options': workchain_options,
             'settings': settings,
-            'clean_workdir' : clean_workdir
+            'clean_workdir' : Bool(True) 
         }
 
         PwBaseWorkChain = WorkflowFactory('quantumespresso.pw.base')
