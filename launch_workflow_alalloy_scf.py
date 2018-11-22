@@ -202,6 +202,9 @@ def launch(code_node, structure_group_name, workchain_group_name,
     structure_group = Group.get_from_string(structure_group_name)
     workchain_group = Group.get_or_create(name=workchain_group_name)[0]
     base_parameter = load_node(base_parameter_node)
+    # announce if running in debug mode
+    if run_debug:
+        print "Running in debug mode!"
 
     # Load all the structures in the structure group, not-yet run in workchain_group_name
     uncalculated_structures = retrieve_alluncalculated_structures(
@@ -216,6 +219,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
     # determine number of calculations to submit
     running_calculations = retrieve_numactive_calculations()
     calcs_to_submit = max_active_calculations - running_calculations
+
 
     # submit calculations
     for structure in uncalculated_structures:
