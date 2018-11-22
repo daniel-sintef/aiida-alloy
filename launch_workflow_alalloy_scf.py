@@ -163,48 +163,44 @@ def wf_setupparams(base_parameter, structure,
         return parameters
 
 
-#@decorators.with_dbenv()
-def launch():
+@click.command()
+@click.option('-c', '--code_node', required=True,
+              help="node of code to use")
+@click.option('-sg', '--structure_group_name', required=True,
+              help='input group of structures to submit workchains on')
+@click.option('-wg', '--workchain_group_name', required=True,
+              help='output group of workchains')
+@click.option('-bp', '--base_parameter_node', required=True,
+              help='node of base ParameterData to setup calculations')
+@click.option('-pfn', '--pseudo_familyname', required=True,
+              help='name of pseudopotential family to use')
+@click.option('-kra', '--kptper_recipang', required=True,
+              help='number of kpoints to use per reciprocal angstrom')
+@click.option('-ber', '--nume2bnd_ratio', required=True,
+              help='band to electron ratio')
+@click.option('-mws', '--max_wallclock_seconds', default=6*60*60,
+              help='maximum wallclock time per job in seconds')
+@click.option('-mac', '--max_active_calculations', default=300,
+              help='maximum number of active calculations')
+@click.option('-sli', '--sleep_interval', default=10*60,
+              help='time to wait (sleep) between calculation submissions')
+@click.option('-rdb', '--run_debug', default=False,
+              help='run the script in debug mode')
+def launch(code_node, structure_group_name, workchain_group_name,
+           base_parameter_node, pseudo_familyname, kptper_recipang,
+           nume2bnd_ratio, max_wallclock_seconds, max_active_calculations,
+           sleep_interval, run_debug):
     from aiida.orm.group import Group
     from aiida.orm.utils import load_node, WorkflowFactory
     from aiida.orm.data.base import Bool, Float, Int, Str
     from aiida.orm.data.parameter import ParameterData
     from aiida.work.launch import submit
 
-
-    ################ HARDCODED PARAMETERS REPLACE WITH CLICK! ############
-    code_node = 10402 #daint
-    #code_node = 15716 #fidis
+    # setup parameters
     code = load_node(code_node)
-    #code = "pw-v6.3@daint"
-
-    #structure_group_name = "allatoms_fiverandom1"
-    structure_group_name = "Al6xxxDB_structures"
     structure_group = Group.get_from_string(structure_group_name)
-    # NOTE: in the real version we are likely to be passed groups, not names
-
-    workchain_group_name = "Al6xxxDB_structures_calc"
     workchain_group = Group.get_or_create(name=workchain_group_name)[0]
-    # NOTE: in the real version we are likely to be passed groups, not names
-
-    base_parameter_node = 15705
     base_parameter = load_node(base_parameter_node)
-
-    pseudo_familyname = "SSSPefv1.1_alalloy"
-
-    kptper_recipang = 80
-
-    nume2bnd_ratio = 0.75
-
-    run_debug = False
-
-    clean_workdir = Bool(True)
-
-    max_wallclock_seconds=6*60*60 # Try to scale nodes s.t. we definitely finish in time
-
-    max_active_calculations = 300
-    sleep_interval = 60*10
-    ######################################################################
 
     # Load all the structures in the structure group, not-yet run in workchain_group_name
     uncalculated_structures = retrieve_alluncalculated_structures(
@@ -227,12 +223,11 @@ def launch():
         while (calcs_to_submit <= 0):
             running_calculations = retrieve_numactive_calculations()
             calcs_to_submit = max_active_calculations - running_calculations
-            if calcs_to_submit <= 0: # in case jobs finished during submission
+            if calcs_to_submit <= 0:  # in case jobs finished during submission
                 print("{} calcs running,"
                       "max num calcs {} waiting....".format(
                           running_calculations, max_active_calculations))
                 time.sleep(sleep_interval)
-
 
         # start timer to inspect job submission times
         from timeit import default_timer as timer
@@ -276,18 +271,19 @@ def launch():
             'parameters': parameters,
             'options': workchain_options,
             'settings': settings,
-            'clean_workdir' : Bool(True) 
+            'clean_workdir': Bool(True) 
         }
 
         PwBaseWorkChain = WorkflowFactory('quantumespresso.pw.base')
         node = submit(PwBaseWorkChain, **inputs)
-        if run_debug:
-            sys.exit()
-        workchain_group.add_nodes([node])
-
         end = timer()
         time_elapsed = end - start
         print "WorkChain: {} submitted, took {}s".format(node, time_elapsed)
+
+        if run_debug:
+            sys.exit()
+
+        workchain_group.add_nodes([node])
 
         calcs_to_submit -= 1
 
