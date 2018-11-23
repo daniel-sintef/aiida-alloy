@@ -12,7 +12,8 @@ import click
 @click.option('-d', '--dataset_path', required=True)
 @click.option('-gn', '--group_name', required=True)
 @click.option('-gd', '--group_description', default="")
-def launch(dataset_path, group_name, group_description):
+@click.option('-pc', '--parse_comments', default=False)
+def launch(dataset_path, group_name, group_description, parse_comments):
     print "loading dataset: {} to group: {}".format(dataset_path, group_name)
 
     # Setup/Retrieve the Group
@@ -30,12 +31,13 @@ def launch(dataset_path, group_name, group_description):
         aiida_structure_stored = aiida_structure.store()
 
         # add in the dataset_path line if possible
-        try:
-            structure_path = ase_structure.comment.strip().split()[-1][3:]
-            aiida_structure_stored.set_extra("structure_path", structure_path)
-        except AttributeError:
-            print "could not set structure_path on {}".format(ase_structure)
-            pass
+        if parse_comments:
+            try:
+                structure_path = ase_structure.comment.strip().split()[-1][3:]
+                aiida_structure_stored.set_extra("structure_path", structure_path)
+            except AttributeError:
+                print "could not set structure_path on {}".format(ase_structure)
+                pass
 
         # add in the chemical formula and number of atoms if possible
         try:
