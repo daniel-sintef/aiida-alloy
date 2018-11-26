@@ -10,4 +10,4 @@
     --max_wallclock_seconds 21600 \
     --max_active_calculations 300 \
     --sleep_interval 600 \
-    --run_debug True
+    --run_debug

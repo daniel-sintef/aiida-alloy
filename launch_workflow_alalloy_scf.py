@@ -184,7 +184,7 @@ def wf_setupparams(base_parameter, structure,
               help='maximum number of active calculations')
 @click.option('-sli', '--sleep_interval', default=10*60,
               help='time to wait (sleep) between calculation submissions')
-@click.option('-rdb', '--run_debug', default=False,
+@click.option('-rdb', '--run_debug', is_flag=True,
               help='run the script in debug mode. Submits one structure only'
                    ' and does not attach the output to the workchain_group')
 def launch(code_node, structure_group_name, workchain_group_name,
