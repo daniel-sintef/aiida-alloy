@@ -15,7 +15,8 @@ import sys
 ase requires that all assigned symbols be on the periodic table. Here we have chosen
 the highly unstable Nobelium (element 102) to internally represent vacancies.
 '''
-VACANCY_SYMBOL="No"
+VACANCY_INTERNAL_SYMBOL="No"
+VACANCY_USER_SYMBOL="Vac"
 
 
 def gen_ase_supercell(lattice_size, supercell_shape, matrix_element):
@@ -67,24 +68,37 @@ def return_nn_distanceAndIndex(ase_supercell):
 
 def prep_elementlist(elementlist):
     elementlist = list(elementlist.split(','))
-    elementlist = map(lambda x:x if x.lower()!= 'vac'  else VACANCY_SYMBOL, elementlist)
+    elementlist = map(lambda x:x if x.lower()!= VACANCY_USER_SYMBOL.lower()
+                      else VACANCY_INTERNAL_SYMBOL, elementlist)
     return elementlist
 
-def store_asestructure(ase_structure, extras, structure_group):
+def store_asestructure(ase_structure, extras, structure_group, dryrun):
     ase_structure = sort(ase_structure)
+
+    # convert any instances of vacancy internal symbol use back to user symbol use
+    for key in extras:
+        if extras[key] == VACANCY_INTERNAL_SYMBOL: extras[key] = VACANCY_USER_SYMBOL
 
     # delete all the vacancy sites prior to storage
     del ase_structure[[x.index for x in ase_structure
-                       if x.symbol==VACANCY_SYMBOL]]
+                       if x.symbol==VACANCY_INTERNAL_SYMBOL or
+                          x.symbol==VACANCY_USER_SYMBOL]]
 
-    aiida_structure = StructureData()
-    aiida_structure.set_ase(ase_structure)
-    aiida_structure_stored = aiida_structure.store()
+    if dryrun:
+        print "structure: {}".format(ase_structure)
+        print "extras: {}".format(extras)
+    else:
+        aiida_structure = StructureData()
+        aiida_structure.set_ase(ase_structure)
+        aiida_structure_stored = aiida_structure.store()
+        for key in extras:
+            aiida_structure_stored.set_extra(key, extras[key])
 
-    aiida_structure_stored.set_extra("num_atoms", len(ase_structure))
-    aiida_structure_stored.set_extra("chem_formula", ase_structure.get_chemical_formula())
+        aiida_structure_stored.set_extra("num_atoms", len(ase_structure))
+        aiida_structure_stored.set_extra("chem_formula", ase_structure.get_chemical_formula())
 
-    structure_group.add_nodes(aiida_structure_stored)
+        structure_group.add_nodes(aiida_structure_stored)
+
     return
 
 @click.command()
@@ -108,10 +122,12 @@ def store_asestructure(ase_structure, extras, structure_group):
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
               help="Description for output AiiDA group")
+@click.option('-dr', '--dryrun', is_flag=True,
+              help="Prints structures and extras but does not store anything")
 def launch(lattice_size,
            supercell_shape, matrix_element,
            firstsolute_elements, secondsolute_elements,
-           structure_group_name, structure_group_description):
+           structure_group_name, structure_group_description, dryrun):
 
     lattice_size = float(lattice_size)
 
@@ -134,7 +150,7 @@ def launch(lattice_size,
     pure_structure = gen_ase_supercell(lattice_size, supercell_shape, matrix_element)
 
     pure_extras = copy.deepcopy(base_extras)
-    store_asestructure(pure_structure, pure_extras, structure_group)
+    store_asestructure(pure_structure, pure_extras, structure_group, dryrun)
 
     nn_distanceindex_frame = return_nn_distanceAndIndex(pure_structure)
 
@@ -147,7 +163,7 @@ def launch(lattice_size,
         singlesol_extras = copy.deepcopy(pure_extras)
         singlesol_extras['sol1_element'] = firstsolute_element
         singlesol_extras['sol1_index'] = 0
-        store_asestructure(singlesol_structure, singlesol_extras, structure_group)
+        store_asestructure(singlesol_structure, singlesol_extras, structure_group, dryrun)
 
         for secondsolute_element in secondsolute_elements:
             # skip symmetrically equivalent structures
@@ -164,7 +180,8 @@ def launch(lattice_size,
                 secondsol_extras['sol2_index'] = secondsol_index
                 secondsol_distance = nn_distanceindex_frame['distances'][i]
                 secondsol_extras['sol2_distance'] = secondsol_distance
-                store_asestructure(secondsol_structure, secondsol_extras, structure_group)
+                store_asestructure(secondsol_structure, secondsol_extras,
+                                   structure_group, dryrun)
 
         previously_generated_firstsol_elements += firstsolute_element
 
