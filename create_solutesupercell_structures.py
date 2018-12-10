@@ -11,10 +11,10 @@ import numpy as np
 import pandas as pd
 import sys
 
-'''
+"""
 ase requires that all assigned symbols be on the periodic table. Here we have chosen
 the highly unstable Nobelium (element 102) to internally represent vacancies.
-'''
+"""
 VACANCY_INTERNAL_SYMBOL="No"
 VACANCY_USER_SYMBOL="Vac"
 
@@ -132,7 +132,10 @@ def launch(lattice_size,
     Script for creating supercells of a given size and matrix element (currently only FCC
     crystal structure supported). Generates a pure supercell of a given matrix, one single
     solute cell for each of the single solute elements specified and all symmetrically unique
-    positions for each of the second solute elements specified.
+    positions for each of the second solute elements specified. NOTE: this script should only
+    be run once per structure group of interest, it performs no checks for duplicates within
+    an existing group. E.g. running the script twice on the same group will result in duplicate
+    entries for each structure.
     """
 
     lattice_size = float(lattice_size)
