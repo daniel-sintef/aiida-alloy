@@ -188,7 +188,7 @@ def launch(lattice_size,
                 secondsol_extras['sol2_element'] = secondsolute_element
                 secondsol_extras['sol2_index'] = secondsol_index
                 secondsol_distance = nn_distanceindex_frame['distances'][i]
-                secondsol_extras['sol2_distance'] = secondsol_distance
+                secondsol_extras['sol1sol2_distance'] = secondsol_distance
                 store_asestructure(secondsol_structure, secondsol_extras,
                                    structure_group, dryrun)
 
