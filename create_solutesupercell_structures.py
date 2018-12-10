@@ -128,6 +128,12 @@ def launch(lattice_size,
            supercell_shape, matrix_element,
            firstsolute_elements, secondsolute_elements,
            structure_group_name, structure_group_description, dryrun):
+    """
+    Script for creating supercells of a given size and matrix element (currently only FCC
+    crystal structure supported). Generates a pure supercell of a given matrix, one single
+    solute cell for each of the single solute elements specified and all symmetrically unique
+    positions for each of the second solute elements specified.
+    """
 
     lattice_size = float(lattice_size)
 
