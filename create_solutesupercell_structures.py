@@ -18,6 +18,8 @@ the highly unstable Nobelium (element 102) to internally represent vacancies.
 VACANCY_INTERNAL_SYMBOL="No"
 VACANCY_USER_SYMBOL="Vac"
 
+GROUP_STRUCTURE_LIST=[]
+
 
 def gen_ase_supercell(lattice_size, supercell_shape, matrix_element):
     a1 = np.array([lattice_size,0.,0.])
@@ -72,6 +74,49 @@ def prep_elementlist(elementlist):
                       else VACANCY_INTERNAL_SYMBOL, elementlist)
     return elementlist
 
+def get_all_asestrcture_from_structuregroup(structure_group):
+    from aiida.orm.group import Group
+    from aiida.orm.data.structure import StructureData
+    from aiida.orm.calculation import WorkCalculation
+    from aiida.orm.querybuilder import QueryBuilder
+
+    if structure_group:
+        structure_group_name = structure_group.name
+    else:
+        return []
+
+    sqb = QueryBuilder()
+    sqb.append(Group, filters={'name': structure_group_name}, tag='g')
+    sqb.append(StructureData, member_of='g')
+
+    res = [x[0].get_ase() for x in sqb.all()]
+    return res
+
+def checkif_structure_alreadyin_group(structure_tocheck, structure_group):
+
+    # pull the list of all structures in the group but only once per execution
+    global GROUP_STRUCTURE_LIST
+    if len(GROUP_STRUCTURE_LIST) == 0:
+        GROUP_STRUCTURE_LIST = get_all_asestrcture_from_structuregroup(structure_group)
+
+    for existing_structure in GROUP_STRUCTURE_LIST:
+        if structure_tocheck.get_chemical_formula() == existing_structure.get_chemical_formula():
+            pass
+        else: continue
+
+        if np.allclose(structure_tocheck.get_cell(), existing_structure.get_cell()):
+            pass
+        else: continue
+
+        if np.allclose(structure_tocheck.get_positions(), existing_structure.get_positions()):
+            pass
+        else: continue
+
+        return True # structure matches all the tests within the for loop
+
+    return False
+
+
 def store_asestructure(ase_structure, extras, structure_group, dryrun):
     ase_structure = sort(ase_structure)
 
@@ -84,10 +129,17 @@ def store_asestructure(ase_structure, extras, structure_group, dryrun):
                        if x.symbol==VACANCY_INTERNAL_SYMBOL or
                           x.symbol==VACANCY_USER_SYMBOL]]
 
+    alreadyin_group = checkif_structure_alreadyin_group(ase_structure, structure_group)
+
+    if alreadyin_group:
+        print "skiping structure, already stored in group: {}".format(ase_structure)
+        return
+
     if dryrun:
         print "structure: {}".format(ase_structure)
         print "extras: {}".format(extras)
     else:
+        print "storing structure: {}".format(ase_structure)
         aiida_structure = StructureData()
         aiida_structure.set_ase(ase_structure)
         aiida_structure_stored = aiida_structure.store()
@@ -147,8 +199,11 @@ def launch(lattice_size,
     firstsolute_elements = prep_elementlist(firstsolute_elements)
     secondsolute_elements = prep_elementlist(secondsolute_elements)
 
-    structure_group = Group.get_or_create(
-                        name=structure_group_name, description=structure_group_description)[0]
+    if not dryrun:
+        structure_group = Group.get_or_create(
+                             name=structure_group_name, description=structure_group_description)[0]
+    else:
+        structure_group = None
 
     base_extras = {
         'lattice_size':lattice_size,
