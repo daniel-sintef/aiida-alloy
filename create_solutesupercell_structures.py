@@ -192,7 +192,7 @@ def launch(lattice_size,
                 store_asestructure(secondsol_structure, secondsol_extras,
                                    structure_group, dryrun)
 
-        previously_generated_firstsol_elements += firstsolute_element
+        previously_generated_firstsol_elements += [firstsolute_element]
 
 if __name__ == "__main__":
    launch()
