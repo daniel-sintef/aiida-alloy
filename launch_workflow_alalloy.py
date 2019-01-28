@@ -178,6 +178,8 @@ def wf_setupparams(base_parameter, structure,
               help='number of kpoints to use per reciprocal angstrom')
 @click.option('-ber', '--nume2bnd_ratio', required=True,
               help='band to electron ratio')
+@click.option('-cm', '--calc_method', default='scf',
+              help='The calculation to perform, supported types are: scf, relax, vc-relax')
 @click.option('-mws', '--max_wallclock_seconds', default=6*60*60,
               help='maximum wallclock time per job in seconds')
 @click.option('-mac', '--max_active_calculations', default=300,
@@ -189,13 +191,17 @@ def wf_setupparams(base_parameter, structure,
                    ' and does not attach the output to the workchain_group')
 def launch(code_node, structure_group_name, workchain_group_name,
            base_parameter_node, pseudo_familyname, kptper_recipang,
-           nume2bnd_ratio, max_wallclock_seconds, max_active_calculations,
+           nume2bnd_ratio, calc_method, max_wallclock_seconds, max_active_calculations,
            sleep_interval, run_debug):
     from aiida.orm.group import Group
     from aiida.orm.utils import load_node, WorkflowFactory
     from aiida.orm.data.base import Bool, Float, Int, Str
     from aiida.orm.data.parameter import ParameterData
     from aiida.work.launch import submit
+
+    valid_calc_methods = ['scf', 'relax', 'vc-relax']
+    if calc_method not in valid_calc_methods:
+        raise Exception("Invalid calc_method: {}".format(calc_method))
 
     # setup parameters
     code = load_node(code_node)
@@ -269,17 +275,29 @@ def launch(code_node, structure_group_name, workchain_group_name,
 
         # setup inputs & submit workchain
         inputs = {
-            'code': code,
-            'structure': structure,
-            'pseudo_family': Str(pseudo_familyname),
-            'kpoints': kpoints,
-            'parameters': parameters,
-            'options': workchain_options,
-            'settings': settings,
-            'clean_workdir': Bool(True) 
-        }
+                  'structure': structure,
+                  'settings': settings,
+                  'clean_workdir': Bool(True)
+                  }
+        base_inputs = {
+                'code': code,
+                'pseudo_family': Str(pseudo_familyname),
+                'kpoints': kpoints,
+                'parameters': parameters,
+                'options': workchain_options,
+                'settings': settings,
+                }
+        if calc_method == 'scf':
+            inputs.update(base_inputs)
+            PwBaseWorkChain = WorkflowFactory('quantumespresso.pw.base')
+        elif calc_method in ['relax', 'vc-relax']:
+            inputs['base'] = base_inputs
+            inputs['final_scf'] = Bool(True)
+            inputs['relaxation_scheme'] = Str(calc_method)
+            PwBaseWorkChain = WorkflowFactory('quantumespresso.pw.relax')
+        else:
+            raise Exception("Invalid calc_method: {}".format(calc_method))
 
-        PwBaseWorkChain = WorkflowFactory('quantumespresso.pw.base')
         node = submit(PwBaseWorkChain, **inputs)
         end = timer()
         time_elapsed = end - start
