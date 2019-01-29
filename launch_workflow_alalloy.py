@@ -180,7 +180,7 @@ def wf_setupparams(base_parameter, structure,
               help='band to electron ratio')
 @click.option('-cm', '--calc_method', default='scf',
               help='The calculation to perform, supported types are: scf, relax, vc-relax')
-@click.option('-mws', '--max_wallclock_seconds', default=6*60*60,
+@click.option('-mws', '--max_wallclock_seconds', default=8*60*60,
               help='maximum wallclock time per job in seconds')
 @click.option('-mac', '--max_active_calculations', default=300,
               help='maximum number of active calculations')
