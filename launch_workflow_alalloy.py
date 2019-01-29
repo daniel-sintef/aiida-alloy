@@ -189,10 +189,12 @@ def wf_setupparams(base_parameter, structure,
 @click.option('-rdb', '--run_debug', is_flag=True,
               help='run the script in debug mode. Submits one structure only'
                    ' and does not attach the output to the workchain_group')
+@click.option('-cwd', '--keep_workdir', is_flag=True,
+              help='Keep the workdir files after running')
 def launch(code_node, structure_group_name, workchain_group_name,
            base_parameter_node, pseudo_familyname, kptper_recipang,
            nume2bnd_ratio, calc_method, max_wallclock_seconds, max_active_calculations,
-           sleep_interval, run_debug):
+           sleep_interval, run_debug, keep_workdir):
     from aiida.orm.group import Group
     from aiida.orm.utils import load_node, WorkflowFactory
     from aiida.orm.data.base import Bool, Float, Int, Str
@@ -262,7 +264,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
         if run_debug:
             num_machines = 2
             options_dict['resources']['num_machines'] = num_machines
-            options_dict['max_wallclock_seconds'] = int(0.5*60*60)
+            options_dict['max_wallclock_seconds'] = int(30*60)
             options_dict['queue_name'] = 'debug'
         workchain_options = ParameterData(dict=options_dict)
 
@@ -274,10 +276,11 @@ def launch(code_node, structure_group_name, workchain_group_name,
         settings = ParameterData(dict=settings_dict)
 
         # setup inputs & submit workchain
+        clean_workdir = not keep_workdir
         inputs = {
                   'structure': structure,
                   'settings': settings,
-                  'clean_workdir': Bool(True)
+                  'clean_workdir': Bool(clean_workdir)
                   }
         base_inputs = {
                 'code': code,
@@ -288,13 +291,20 @@ def launch(code_node, structure_group_name, workchain_group_name,
                 'settings': settings,
                 }
         if calc_method == 'scf':
-            inputs.update(base_inputs)
             PwBaseWorkChain = WorkflowFactory('quantumespresso.pw.base')
-        elif calc_method in ['relax', 'vc-relax']:
-            inputs['base'] = base_inputs
-            inputs['final_scf'] = Bool(True)
-            inputs['relaxation_scheme'] = Str(calc_method)
+            inputs.update(base_inputs)
+        elif calc_method == 'relax':
             PwBaseWorkChain = WorkflowFactory('quantumespresso.pw.relax')
+            inputs['base'] = base_inputs
+            inputs['relaxation_scheme'] = Str('relax')
+            inputs['final_scf'] = Bool(False)
+            inputs['meta_convergence'] = Bool(False)
+        elif calc_method == 'vc-relax':
+            PwBaseWorkChain = WorkflowFactory('quantumespresso.pw.relax')
+            inputs['base'] = base_inputs
+            inputs['relaxation_scheme'] = Str('vc-relax')
+            inputs['final_scf'] = Bool(True)
+            inputs['meta_convergence'] = Bool(False)
         else:
             raise Exception("Invalid calc_method: {}".format(calc_method))
 
