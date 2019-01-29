@@ -174,12 +174,14 @@ def store_asestructure(ase_structure, extras, structure_group, dryrun):
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
               help="Description for output AiiDA group")
+@click.option('-sso', '--single_solute_only', is_flag=True,
+              help="Only generate the pure and single solute structures")
 @click.option('-dr', '--dryrun', is_flag=True,
               help="Prints structures and extras but does not store anything")
 def launch(lattice_size,
            supercell_shape, matrix_element,
            firstsolute_elements, secondsolute_elements,
-           structure_group_name, structure_group_description, dryrun):
+           structure_group_name, structure_group_description, single_solute_only, dryrun):
     """
     Script for creating supercells of a given size and matrix element (currently only FCC
     crystal structure supported). Generates a pure supercell of a given matrix, one single
@@ -230,6 +232,9 @@ def launch(lattice_size,
         store_asestructure(singlesol_structure, singlesol_extras, structure_group, dryrun)
 
         for secondsolute_element in secondsolute_elements:
+            if single_solute_only:
+                break
+
             # skip symmetrically equivalent structures
             if secondsolute_element in previously_generated_firstsol_elements:
                 continue
