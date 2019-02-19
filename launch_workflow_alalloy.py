@@ -184,6 +184,8 @@ def wf_setupparams(base_parameter, structure,
               help='maximum wallclock time per job in seconds')
 @click.option('-mac', '--max_active_calculations', default=300,
               help='maximum number of active calculations')
+@click.option('-nnd', '--number_of_nodes', default=None,
+              help='Force all calculations to use the specified number of nodes')
 @click.option('-sli', '--sleep_interval', default=10*60,
               help='time to wait (sleep) between calculation submissions')
 @click.option('-rdb', '--run_debug', is_flag=True,
@@ -194,7 +196,7 @@ def wf_setupparams(base_parameter, structure,
 def launch(code_node, structure_group_name, workchain_group_name,
            base_parameter_node, pseudo_familyname, kptper_recipang,
            nume2bnd_ratio, calc_method, max_wallclock_seconds, max_active_calculations,
-           sleep_interval, run_debug, keep_workdir):
+           number_of_nodes, sleep_interval, run_debug, keep_workdir):
     from aiida.orm.group import Group
     from aiida.orm.utils import load_node, WorkflowFactory
     from aiida.orm.data.base import Bool, Float, Int, Str
@@ -256,7 +258,10 @@ def launch(code_node, structure_group_name, workchain_group_name,
         kpoints = wf_getkpoints(structure, Int(kptper_recipang))
 
         # determine parallelization & resources (setup the settings & options)
-        num_machines = get_nummachines(structure)
+        if number_of_nodes:
+            num_machines = int(number_of_nodes)
+        else:
+            num_machines = get_nummachines(structure)
         options_dict = {
             'max_wallclock_seconds': max_wallclock_seconds,
             'resources': {'num_machines': num_machines},
