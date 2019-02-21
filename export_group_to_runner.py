@@ -37,8 +37,23 @@ def createjob(work_group):
     def get_workcalc_runnerdata(worknode):
         ase_structure = worknode.inp.structure.get_ase()
         energy = worknode.out.output_parameters.get_attrs()['energy']  # units?
-        forces = worknode.out.output_array.get_array('forces')  # units?
-        path = worknode.out.CALL.out.retrieved.get_abs_path()
+
+        #TODO: this section splits for SCF and relax, should fix & merge
+        print "worknode: ", worknode
+        try:
+            # SCF
+            forces = worknode.out.output_array.get_array('forces')  # units?
+        except Exception:
+            # Relax (probably)
+            forces = worknode.out.CALL.out.CALL.out.output_trajectory.get_array('forces')
+
+        #TODO: this section splits for SCF and relax, should fix & merge
+        try:
+            # SCF
+            path = worknode.out.CALL.out.retrieved.get_abs_path()
+        except Exception:
+            # Relax (probably)
+            path = "path support only for SCF calcs"
         return ase_structure, energy, forces, worknode.uuid, path
 
     angstrom_to_bohrradius = 1.8897261
@@ -63,6 +78,7 @@ def createjob(work_group):
 
         #  write the positions
         nr_of_atoms = ase_structure.positions.shape[0]
+        print nr_of_atoms, len(forces)
         for idx_pos in range(nr_of_atoms):
             atCor = ase_structure.positions[idx_pos]*angstrom_to_bohrradius
             atFor = forces[idx_pos]*eV_per_angstrom_to_hartree_per_bohrradius
