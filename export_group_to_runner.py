@@ -35,7 +35,12 @@ def createjob(work_group):
     all_works = [x[0] for x in qb.all()]  # all workchains
 
     def get_workcalc_runnerdata(worknode):
-        ase_structure = worknode.inp.structure.get_ase()
+        #TODO enable multi-structure support
+        try:
+            ase_structure = worknode.out.output_structure.get_ase()
+        except Exception:
+            ase_structure = worknode.inp.structure.get_ase()
+
         energy = worknode.out.output_parameters.get_attrs()['energy']  # units?
 
         #TODO: this section splits for SCF and relax, should fix & merge
