@@ -4,6 +4,7 @@ aiida.load_dbenv()
 from aiida.orm.querybuilder import QueryBuilder
 from aiida.orm import Group, WorkCalculation
 import click
+from ase import units
 
 # show default values in click
 orig_init = click.core.Option.__init__
