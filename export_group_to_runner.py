@@ -62,9 +62,14 @@ def createjob(work_group):
             path = "path support only for SCF calcs"
         return ase_structure, energy, forces, worknode.uuid, path
 
-    angstrom_to_bohrradius = 1.8897261
-    eV_to_Hartree = 0.036749325
-    eV_per_angstrom_to_hartree_per_bohrradius = 0.019446905
+    # This is from units tool, but ase uses other conversion factors
+    #angstrom_to_bohrradius = 1.8897261
+    #eV_to_Hartree = 0.036749325
+    #eV_per_angstrom_to_hartree_per_bohrradius = 0.019446905
+
+    angstrom_to_bohrradius = 1./units.Bohr
+    eV_to_Hartree = 1/units.Hartree
+    eV_per_angstrom_to_hartree_per_bohrradius = units.Bohr/units.Hartree
 
     fileOut = open(work_group+".input.data", "w")
 
