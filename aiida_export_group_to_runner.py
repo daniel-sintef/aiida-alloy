@@ -1,10 +1,13 @@
 #!/usr/bin/env python
+from __future__ import print_function
 import aiida
 aiida.load_dbenv()
 from aiida.orm.querybuilder import QueryBuilder
 from aiida.orm import Group, WorkCalculation
 import click
 from ase import units
+import aiida_utils
+import sys
 
 # show default values in click
 orig_init = click.core.Option.__init__
@@ -24,12 +27,17 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.option('-wg', '--work_group', required=True, prompt=True,
               type=str, help="verid group to be converted to runner format")
-def createjob(work_group):
+@click.option('-f', '--filename', required=False, default=False,
+         type=str, help="filename for outputfile, default = work_group+\".input.data\"")
+
+
+def createjob(work_group,filename):
     ''' e.g.
     ./aiida_export_group_to_runner.py -wg kmc_1000K_4
     ./aiida_export_group_to_runner.py -wg Al6xxxDB_passingsubset works
     '''
     print('work_group:', work_group)
+    print('filename  :',filename)
     qb = QueryBuilder()
     qb.append(Group, filters={'name': work_group}, tag='g')
     qb.append(WorkCalculation, tag='job', member_of='g')
@@ -45,7 +53,7 @@ def createjob(work_group):
         energy = worknode.out.output_parameters.get_attrs()['energy']  # units?
 
         #TODO: this section splits for SCF and relax, should fix & merge
-        print "worknode: ", worknode
+        print("worknode: ", worknode)
         try:
             # SCF
             forces = worknode.out.output_array.get_array('forces')  # units?
@@ -71,7 +79,11 @@ def createjob(work_group):
     eV_to_Hartree = 1/units.Hartree
     eV_per_angstrom_to_hartree_per_bohrradius = units.Bohr/units.Hartree
 
-    fileOut = open(work_group+".input.data", "w")
+    aiida_utils.create_READMEtxt()
+    if filename == False:
+        fileOut = open(work_group+".input.data", "w")
+    else:
+        fileOut = open(filename, "w")
 
     for idx, workchain in enumerate(all_works):
         ase_structure, energy, forces, uuid, path = get_workcalc_runnerdata(workchain)
@@ -89,7 +101,7 @@ def createjob(work_group):
 
         #  write the positions
         nr_of_atoms = ase_structure.positions.shape[0]
-        print nr_of_atoms, len(forces)
+        print(nr_of_atoms, len(forces))
         for idx_pos in range(nr_of_atoms):
             atCor = ase_structure.positions[idx_pos]*angstrom_to_bohrradius
             atFor = forces[idx_pos]*eV_per_angstrom_to_hartree_per_bohrradius
