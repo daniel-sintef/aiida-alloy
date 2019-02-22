@@ -81,12 +81,16 @@ def createjob(work_group,filename):
 
     aiida_utils.create_READMEtxt()
     if filename == False:
-        fileOut = open(work_group+".input.data", "w")
+        fileOut = open("aiida_exported_group_"+work_group+".input.data", "w")
     else:
         fileOut = open(filename, "w")
 
     for idx, workchain in enumerate(all_works):
-        ase_structure, energy, forces, uuid, path = get_workcalc_runnerdata(workchain)
+        try:
+            ase_structure, energy, forces, uuid, path = get_workcalc_runnerdata(workchain)
+        except AttributeError:
+            print('this worknode has errors')
+            continue
         print(idx, "ene (eV)", energy, uuid, path)
         forces = forces[-1]
 
