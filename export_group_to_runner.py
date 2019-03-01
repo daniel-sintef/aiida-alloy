@@ -3,6 +3,7 @@ import aiida
 aiida.load_dbenv()
 from aiida.orm.querybuilder import QueryBuilder
 from aiida.orm import Group, WorkCalculation
+from aiida.orm.data.structure import StructureData
 import click
 
 # show default values in click
@@ -21,18 +22,32 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.option('-wg', '--work_group', required=True, prompt=True,
-              type=str, help="verid group to be converted to runner format")
-def createjob(work_group):
+@click.option('-wg', '--work_group', default=None,
+              type=str, help="verdi work group to be converted to runner format")
+@click.option('-sg', '--structure_group', default=None,
+              type=str, help="verdi structure group to be converted to runner format")
+def createjob(work_group, structure_group):
     ''' e.g.
     ./aiida_export_group_to_runner.py -wg kmc_1000K_4
-    ./aiida_export_group_to_runner.py -wg Al6xxxDB_passingsubset works
+    ./aiida_export_group_to_runner.py -wg Al6xxxDB_passingsubset
+    ./aiida_export_group_to_runner.py -sg Al6xxxDB_structuregroup
     '''
-    print('work_group:', work_group)
+    if work_group:
+        input_group = work_group
+    elif structure_group:
+        input_group = structure_group
+    else:
+        raise Exception("Must select at least one group")
+
     qb = QueryBuilder()
-    qb.append(Group, filters={'name': work_group}, tag='g')
-    qb.append(WorkCalculation, tag='job', member_of='g')
-    all_works = [x[0] for x in qb.all()]  # all workchains
+    qb.append(Group, filters={'name': input_group}, tag='g')
+    if work_group:
+        print('work_group:', work_group)
+        qb.append(WorkCalculation, tag='job', member_of='g')
+    if structure_group:
+        print('structure_group:', structure_group)
+        qb.append(StructureData, tag='structure', member_of='g')
+    all_nodes = [x[0] for x in qb.all()]
 
     def get_workcalc_runnerdata(worknode):
         #TODO enable multi-structure support
@@ -40,6 +55,11 @@ def createjob(work_group):
             ase_structure = worknode.out.output_structure.get_ase()
         except Exception:
             ase_structure = worknode.inp.structure.get_ase()
+
+        try:
+            structure_path = worknode.inp.structure.get_extras()['structure_path']
+        except Exception:
+            structure_path = ''
 
         energy = worknode.out.output_parameters.get_attrs()['energy']  # units?
 
@@ -51,6 +71,7 @@ def createjob(work_group):
         except Exception:
             # Relax (probably)
             forces = worknode.out.CALL.out.CALL.out.output_trajectory.get_array('forces')
+        forces = forces[-1]
 
         #TODO: this section splits for SCF and relax, should fix & merge
         try:
@@ -59,21 +80,33 @@ def createjob(work_group):
         except Exception:
             # Relax (probably)
             path = "path support only for SCF calcs"
-        return ase_structure, energy, forces, worknode.uuid, path
+        return ase_structure, energy, forces, worknode.uuid, path, structure_path
+
+    def get_structure_runnerdata(structurenode):
+        ase_structure = structurenode.get_ase()
+
+        try:
+            structure_path = structurenode.get_extras()['structure_path']
+        except Exception:
+            structure_path = ''
+
+        return ase_structure, structurenode.uuid, structure_path
 
     angstrom_to_bohrradius = 1.8897261
     eV_to_Hartree = 0.036749325
     eV_per_angstrom_to_hartree_per_bohrradius = 0.019446905
 
-    fileOut = open(work_group+".input.data", "w")
+    fileOut = open(input_group+".input.data", "w")
 
-    for idx, workchain in enumerate(all_works):
-        ase_structure, energy, forces, uuid, path = get_workcalc_runnerdata(workchain)
-        print(idx, "ene (eV)", energy, uuid, path)
-        forces = forces[-1]
+    for idx, workchain in enumerate(all_nodes):
+        if work_group:
+            ase_structure, energy, forces, uuid, path, structure_path = get_workcalc_runnerdata(workchain)
+            print(idx, "ene (eV)", energy, uuid, path, structure_path)
+        elif structure_group:
+            ase_structure, uuid, structure_path = get_structure_runnerdata(workchain)
 
-        work_uuid = workchain.uuid
-        fileOut.write("begin\ncomment uuid: {}\n".format(work_uuid))
+        fileOut.write("begin\ncomment uuid: {}\n".format(uuid))
+        fileOut.write("comment structure_path: {}\n".format(structure_path))
 
         # write the cell
         cell = ase_structure.cell*angstrom_to_bohrradius
@@ -83,16 +116,23 @@ def createjob(work_group):
 
         #  write the positions
         nr_of_atoms = ase_structure.positions.shape[0]
-        print nr_of_atoms, len(forces)
         for idx_pos in range(nr_of_atoms):
             atCor = ase_structure.positions[idx_pos]*angstrom_to_bohrradius
-            atFor = forces[idx_pos]*eV_per_angstrom_to_hartree_per_bohrradius
             element = ase_structure.get_chemical_symbols()[idx_pos]
-            fileOut.write("atom   %.6f    %.6f   %.6f %s  0.0   0.0  %.10f  %.10f  %.10f\n" %
-                          (atCor[0], atCor[1], atCor[2],
-                           element,
-                           atFor[0], atFor[1], atFor[2]))
-        fileOut.write("energy %.15f\n" % (energy*eV_to_Hartree))
+            if work_group:
+                atFor = forces[idx_pos]*eV_per_angstrom_to_hartree_per_bohrradius
+                fileOut.write("atom   %.6f    %.6f   %.6f %s  0.0   0.0  %.10f  %.10f  %.10f\n" %
+                              (atCor[0], atCor[1], atCor[2],
+                               element,
+                               atFor[0], atFor[1], atFor[2]))
+            elif structure_group:
+                fileOut.write("atom   %.6f    %.6f   %.6f %s \n" %
+                              (atCor[0], atCor[1], atCor[2], element))
+            else:
+                raise Exception("Must have either work or structure group")
+
+        if work_group:
+            fileOut.write("energy %.15f\n" % (energy*eV_to_Hartree))
         fileOut.write("charge 0\nend\n")
 
     fileOut.close()
