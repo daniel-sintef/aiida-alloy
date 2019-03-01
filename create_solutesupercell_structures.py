@@ -176,20 +176,22 @@ def store_asestructure(ase_structure, extras, structure_group, dryrun):
               help="Description for output AiiDA group")
 @click.option('-sso', '--single_solute_only', is_flag=True,
               help="Only generate the pure and single solute structures")
+@click.option('-mxi', '--maximum_nn_index', default=None,
+              help="Maximum nearest neighbour index for solute-solutes")
+@click.option('-mxd', '--maximum_nn_distance', default=None,
+              help="Maximum nearest neighbour distance for solute-solutes")
 @click.option('-dr', '--dryrun', is_flag=True,
               help="Prints structures and extras but does not store anything")
 def launch(lattice_size,
            supercell_shape, matrix_element,
            firstsolute_elements, secondsolute_elements,
-           structure_group_name, structure_group_description, single_solute_only, dryrun):
+           structure_group_name, structure_group_description, single_solute_only,
+           maximum_nn_index, maximum_nn_distance, dryrun):
     """
     Script for creating supercells of a given size and matrix element (currently only FCC
     crystal structure supported). Generates a pure supercell of a given matrix, one single
     solute cell for each of the single solute elements specified and all symmetrically unique
-    positions for each of the second solute elements specified. NOTE: this script should only
-    be run once per structure group of interest, it performs no checks for duplicates within
-    an existing group. E.g. running the script twice on the same group will result in duplicate
-    entries for each structure.
+    positions for each of the second solute elements specified.
     """
 
     lattice_size = float(lattice_size)
@@ -249,6 +251,11 @@ def launch(lattice_size,
                 secondsol_extras['sol2_index'] = secondsol_index
                 secondsol_distance = nn_distanceindex_frame['distances'][i]
                 secondsol_extras['sol1sol2_distance'] = secondsol_distance
+
+                if maximum_nn_index and i > int(maximum_nn_index):
+                    break
+                if maximum_nn_distance and secondsol_distance > float(maximum_nn_distance):
+                    break
                 store_asestructure(secondsol_structure, secondsol_extras,
                                    structure_group, dryrun)
 
