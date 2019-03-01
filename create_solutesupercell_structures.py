@@ -203,6 +203,11 @@ def launch(lattice_size,
     firstsolute_elements = prep_elementlist(firstsolute_elements)
     secondsolute_elements = prep_elementlist(secondsolute_elements)
 
+    if matrix_element in firstsolute_elements:
+        raise Exception("cannot have the matrix element as a first solute")
+    if matrix_element in secondsolute_elements:
+        raise Exception("cannot have the matrix element as a second solute")
+
     if not dryrun:
         structure_group = Group.get_or_create(
                              name=structure_group_name, description=structure_group_description)[0]
