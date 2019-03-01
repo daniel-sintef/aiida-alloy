@@ -1,10 +1,14 @@
 #!/usr/bin/env python
+from __future__ import print_function
 import aiida
 aiida.load_dbenv()
 from aiida.orm.querybuilder import QueryBuilder
 from aiida.orm import Group, WorkCalculation
 from aiida.orm.data.structure import StructureData
 import click
+from ase import units
+import aiida_utils
+import sys
 
 # show default values in click
 orig_init = click.core.Option.__init__
@@ -26,7 +30,9 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
               type=str, help="verdi work group to be converted to runner format")
 @click.option('-sg', '--structure_group', default=None,
               type=str, help="verdi structure group to be converted to runner format")
-def createjob(work_group, structure_group):
+@click.option('-f', '--filename', required=False, default=False,
+         type=str, help="filename for outputfile, default = work_group+\".input.data\"")
+def createjob(work_group,structure_group,filename):
     ''' e.g.
     ./aiida_export_group_to_runner.py -wg kmc_1000K_4
     ./aiida_export_group_to_runner.py -wg Al6xxxDB_passingsubset
@@ -43,6 +49,7 @@ def createjob(work_group, structure_group):
     qb.append(Group, filters={'name': input_group}, tag='g')
     if work_group:
         print('work_group:', work_group)
+        print('filename  :',filename)
         qb.append(WorkCalculation, tag='job', member_of='g')
     if structure_group:
         print('structure_group:', structure_group)
@@ -64,7 +71,7 @@ def createjob(work_group, structure_group):
         energy = worknode.out.output_parameters.get_attrs()['energy']  # units?
 
         #TODO: this section splits for SCF and relax, should fix & merge
-        print "worknode: ", worknode
+        print("worknode: ", worknode)
         try:
             # SCF
             forces = worknode.out.output_array.get_array('forces')  # units?
@@ -92,18 +99,33 @@ def createjob(work_group, structure_group):
 
         return ase_structure, structurenode.uuid, structure_path
 
-    angstrom_to_bohrradius = 1.8897261
-    eV_to_Hartree = 0.036749325
-    eV_per_angstrom_to_hartree_per_bohrradius = 0.019446905
+    # This is from units tool, but ase uses other conversion factors
+    #angstrom_to_bohrradius = 1.8897261
+    #eV_to_Hartree = 0.036749325
+    #eV_per_angstrom_to_hartree_per_bohrradius = 0.019446905
 
     fileOut = open(input_group+".input.data", "w")
 
-    for idx, workchain in enumerate(all_nodes):
-        if work_group:
-            ase_structure, energy, forces, uuid, path, structure_path = get_workcalc_runnerdata(workchain)
-            print(idx, "ene (eV)", energy, uuid, path, structure_path)
-        elif structure_group:
-            ase_structure, uuid, structure_path = get_structure_runnerdata(workchain)
+    angstrom_to_bohrradius = 1./units.Bohr
+    eV_to_Hartree = 1/units.Hartree
+    eV_per_angstrom_to_hartree_per_bohrradius = units.Bohr/units.Hartree
+
+    aiida_utils.create_READMEtxt()
+    if filename == False:
+        fileOut = open("aiida_exported_group_"+input_group+".input.data", "w")
+    else:
+        fileOut = open(filename, "w")
+
+    for idx, node in enumerate(all_nodes):
+        try:
+            if work_group:
+               ase_structure, energy, forces, uuid, path, structure_path = get_workcalc_runnerdata(node)
+               print(idx, "ene (eV)", energy, uuid, path)
+            if structure_group:
+               ase_structure, uuid, structure_path = get_structure_runnerdata(node)
+        except AttributeError:
+            print('this worknode has errors')
+            continue
 
         fileOut.write("begin\ncomment uuid: {}\n".format(uuid))
         fileOut.write("comment structure_path: {}\n".format(structure_path))
