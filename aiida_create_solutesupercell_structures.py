@@ -254,6 +254,7 @@ def launch(lattice_size,
                 secondsol_extras = copy.deepcopy(singlesol_extras)
                 secondsol_extras['sol2_element'] = secondsolute_element
                 secondsol_extras['sol2_index'] = secondsol_index
+                secondsol_extras['sol2_nn'] = i
                 secondsol_distance = nn_distanceindex_frame['distances'][i]
                 secondsol_extras['sol1sol2_distance'] = secondsol_distance
 

@@ -128,7 +128,6 @@ def createjob(work_group,structure_group,filename):
             continue
 
         fileOut.write("begin\ncomment uuid: {}\n".format(uuid))
-        fileOut.write("comment structure_path: {}\n".format(structure_path))
 
         # write the cell
         cell = ase_structure.cell*angstrom_to_bohrradius
@@ -148,8 +147,10 @@ def createjob(work_group,structure_group,filename):
                                element,
                                atFor[0], atFor[1], atFor[2]))
             elif structure_group:
-                fileOut.write("atom   %.6f    %.6f   %.6f %s \n" %
-                              (atCor[0], atCor[1], atCor[2], element))
+                fileOut.write("atom   %.6f    %.6f   %.6f %s  0.0   0.0  %.10f  %.10f  %.10f\n" %
+                              (atCor[0], atCor[1], atCor[2],
+                               element,
+                               0, 0, 0))
             else:
                 raise Exception("Must have either work or structure group")
 
