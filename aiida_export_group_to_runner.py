@@ -123,6 +123,7 @@ def createjob(work_group,structure_group,filename):
                print(idx, "ene (eV)", energy, uuid, path)
             if structure_group:
                ase_structure, uuid, structure_path = get_structure_runnerdata(node)
+               energy = 0 # dummy energy always set to zero for structure group
         except AttributeError:
             print('this worknode has errors')
             continue
@@ -150,12 +151,11 @@ def createjob(work_group,structure_group,filename):
                 fileOut.write("atom   %.6f    %.6f   %.6f %s  0.0   0.0  %.10f  %.10f  %.10f\n" %
                               (atCor[0], atCor[1], atCor[2],
                                element,
-                               0, 0, 0))
+                               0, 0, 0)) # dummy forces always set to zero
             else:
                 raise Exception("Must have either work or structure group")
 
-        if work_group:
-            fileOut.write("energy %.15f\n" % (energy*eV_to_Hartree))
+        fileOut.write("energy %.15f\n" % (energy*eV_to_Hartree))
         fileOut.write("charge 0\nend\n")
 
     fileOut.close()
