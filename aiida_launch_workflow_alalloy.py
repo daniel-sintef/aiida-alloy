@@ -91,7 +91,7 @@ def get_kmeshfrom_kptper_recipang(aiida_structure, kptper_recipang):
     return kmesh
 
 
-def get_nummachines(structure, a=2*(10**-4), b=2):
+def get_nummachines(structure, a=1*(10**-4), b=1):
     # NOTE: used very adhoc guess for nodes, assuming quadratic scaling
     # NOTE: perhaps num_electrons may give a better estimate
     try:
