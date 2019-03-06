@@ -91,7 +91,7 @@ def get_kmeshfrom_kptper_recipang(aiida_structure, kptper_recipang):
     return kmesh
 
 
-def get_nummachines(structure, a=1*(10**-4), b=1):
+def get_nummachines(structure, a=1*(10**-4), b=2):
     # NOTE: used very adhoc guess for nodes, assuming quadratic scaling
     # NOTE: perhaps num_electrons may give a better estimate
     try:
@@ -309,7 +309,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
             inputs['base'] = base_inputs
             inputs['relaxation_scheme'] = Str('vc-relax')
             inputs['final_scf'] = Bool(True)
-            inputs['meta_convergence'] = Bool(False)
+            inputs['meta_convergence'] = Bool(True)
         else:
             raise Exception("Invalid calc_method: {}".format(calc_method))
 
