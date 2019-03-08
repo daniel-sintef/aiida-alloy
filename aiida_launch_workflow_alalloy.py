@@ -91,7 +91,7 @@ def get_kmeshfrom_kptper_recipang(aiida_structure, kptper_recipang):
     return kmesh
 
 
-def get_nummachines(structure, a=1*(10**-4), b=2):
+def get_nummachines(structure, a=1*(10**-4), b=1):
     # NOTE: used very adhoc guess for nodes, assuming quadratic scaling
     # NOTE: perhaps num_electrons may give a better estimate
     try:
@@ -99,7 +99,7 @@ def get_nummachines(structure, a=1*(10**-4), b=2):
     except KeyError:
         num_atoms = len(structure.get_ase())
     numnodes = a*num_atoms**2. + b
-    numnodes = max(round(numnodes/2)*2, b)  # force even # of nodes
+    numnodes = max(round(numnodes/2)*2, 2)  # force even # of nodes
     return numnodes
 
 
@@ -188,6 +188,8 @@ def wf_setupparams(base_parameter, structure,
               help='Force all calculations to use the specified number of nodes')
 @click.option('-sli', '--sleep_interval', default=10*60,
               help='time to wait (sleep) between calculation submissions')
+@click.option('-zmo', '--z_movement_only', is_flag=True,
+              help='Restricts movement to the z direction only. For relaxing stacking fault')
 @click.option('-rdb', '--run_debug', is_flag=True,
               help='run the script in debug mode. Submits one structure only'
                    ' and does not attach the output to the workchain_group')
@@ -196,7 +198,7 @@ def wf_setupparams(base_parameter, structure,
 def launch(code_node, structure_group_name, workchain_group_name,
            base_parameter_node, pseudo_familyname, kptper_recipang,
            nume2bnd_ratio, calc_method, max_wallclock_seconds, max_active_calculations,
-           number_of_nodes, sleep_interval, run_debug, keep_workdir):
+           number_of_nodes, sleep_interval, z_movement_only, run_debug, keep_workdir):
     from aiida.orm.group import Group
     from aiida.orm.utils import load_node, WorkflowFactory
     from aiida.orm.data.base import Bool, Float, Int, Str
@@ -278,6 +280,10 @@ def launch(code_node, structure_group_name, workchain_group_name,
             'cmdline': ['-nk', nk],
             'no_bands': True
             }
+        if z_movement_only:
+            num_atoms = len(structure.get_ase())
+            coordinate_fix = [[False,False,True]]*num_atoms
+            settings_dict['fixed_coords'] = coordinate_fix
         settings = ParameterData(dict=settings_dict)
 
         # setup inputs & submit workchain
