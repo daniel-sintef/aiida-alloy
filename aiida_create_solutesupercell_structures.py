@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import aiida
-aiida.load_dbenv()
+aiida.try_load_dbenv()
 from aiida.orm.group import Group
 from aiida.orm.data.structure import StructureData
 import ase
@@ -68,11 +68,6 @@ def return_nn_distanceAndIndex(ase_supercell):
 
     return nn_distanceindex_frame
 
-def prep_elementlist(elementlist):
-    elementlist = list(elementlist.split(','))
-    elementlist = map(lambda x:x if x.lower()!= VACANCY_USER_SYMBOL.lower()
-                      else VACANCY_INTERNAL_SYMBOL, elementlist)
-    return elementlist
 
 def get_all_asestrcture_from_structuregroup(structure_group):
     from aiida.orm.group import Group
@@ -119,6 +114,7 @@ def checkif_structure_alreadyin_group(structure_tocheck, structure_group):
 
 def store_asestructure(ase_structure, extras, structure_group, dryrun):
     ase_structure = sort(ase_structure)
+    ase_structure.set_tags([0]*len(ase_structure)) #force AiiDA to use the same kind for each element
 
     # convert any instances of vacancy internal symbol use back to user symbol use
     for key in extras:
@@ -199,6 +195,12 @@ def launch(lattice_size,
     supercell_shape = supercell_shape.split(',')
     if len(supercell_shape) != 3:
         sys.exit("supercell_shape must be of the form Nx,Ny,Nz")
+
+    def prep_elementlist(elementlist):
+        elementlist = list(elementlist.split(','))
+        elementlist = map(lambda x:x if x.lower()!= VACANCY_USER_SYMBOL.lower()
+                          else VACANCY_INTERNAL_SYMBOL, elementlist)
+        return elementlist
 
     firstsolute_elements = prep_elementlist(firstsolute_elements)
     secondsolute_elements = prep_elementlist(secondsolute_elements)
