@@ -186,6 +186,8 @@ def wf_setupparams(base_parameter, structure,
               help='maximum number of active calculations')
 @click.option('-nnd', '--number_of_nodes', default=None,
               help='Force all calculations to use the specified number of nodes')
+@click.option('-memgb', '--memory_gb', default=None,
+              help='specify the amount of memory for all jobs in GB')
 @click.option('-sli', '--sleep_interval', default=10*60,
               help='time to wait (sleep) between calculation submissions')
 @click.option('-zmo', '--z_movement_only', is_flag=True,
@@ -198,7 +200,7 @@ def wf_setupparams(base_parameter, structure,
 def launch(code_node, structure_group_name, workchain_group_name,
            base_parameter_node, pseudo_familyname, kptper_recipang,
            nume2bnd_ratio, calc_method, max_wallclock_seconds, max_active_calculations,
-           number_of_nodes, sleep_interval, z_movement_only, run_debug, keep_workdir):
+           number_of_nodes, memory_gb, sleep_interval, z_movement_only, run_debug, keep_workdir):
     from aiida.orm.group import Group
     from aiida.orm.utils import load_node, WorkflowFactory
     from aiida.orm.data.base import Bool, Float, Int, Str
@@ -268,6 +270,8 @@ def launch(code_node, structure_group_name, workchain_group_name,
             'max_wallclock_seconds': max_wallclock_seconds,
             'resources': {'num_machines': num_machines},
         }
+        if memory_gb:
+            options_dict['max_memory_kb'] = int(int(memory_gb)*1024*1024)
         if run_debug:
             num_machines = 2
             options_dict['resources']['num_machines'] = num_machines
@@ -282,7 +286,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
             }
         if z_movement_only:
             num_atoms = len(structure.get_ase())
-            coordinate_fix = [[False,False,True]]*num_atoms
+            coordinate_fix = [[True,True,False]]*num_atoms
             settings_dict['fixed_coords'] = coordinate_fix
         settings = ParameterData(dict=settings_dict)
 
