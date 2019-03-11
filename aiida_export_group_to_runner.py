@@ -87,7 +87,8 @@ def write_structure_torunner(fileout, structure_node, extra_comments={}):
 def get_timesorted_basenodes(relaxworknode):
     q = QueryBuilder()
     q.append(WorkCalculation, filters={"uuid": relaxworknode.uuid}, tag="relaxworknode")
-    q.append(WorkCalculation, output_of="relaxworknode", project=["id", "ctime",  "*"],  tag="calc")
+    q.append(WorkCalculation, output_of="relaxworknode",
+             project=["id", "ctime",  "*"],  tag="calc")
     q.order_by({"calc": "ctime"})
     timesorted_scf = [x[2] for x in q.all()]
     return timesorted_scf
@@ -141,7 +142,11 @@ def write_pwrelax_torunner(fileout, relax_node, extra_comments={}):
     timesorted_cells = get_arraysbyname_fromtrajectories(trajectories, 'cells')
     timesorted_positions = get_arraysbyname_fromtrajectories(trajectories, 'positions')
     timesorted_forces = get_arraysbyname_fromtrajectories(trajectories, 'forces')
-    timesorted_energy = get_arraysbyname_fromtrajectories(trajectories, 'energy')
+    if len(timesorted_forces) == 1:
+        energy = relax_node.out.CALL.out.CALL.out.output_parameters.get_attr('energy')
+        timesorted_energy = [energy]
+    else:
+        timesorted_energy = get_arraysbyname_fromtrajectories(trajectories, 'energy')
     elements = trajectories[0].get_array('symbols') # assume unchangin
 
     extra_comments={"trajectory_step":None}
@@ -149,7 +154,7 @@ def write_pwrelax_torunner(fileout, relax_node, extra_comments={}):
         extra_comments["trajectory_step"] = i
         write_runner_commentline(fileout, relax_node.uuid, extra_comments=extra_comments)
         write_runner_cell(fileout, timesorted_cells[i])
-        write_runner_atomlines(fileout, 
+        write_runner_atomlines(fileout,
            timesorted_positions[i], elements, atomicforce_array=timesorted_forces[i])
         write_runner_finalline(fileout, energy=timesorted_energy[i])
 
