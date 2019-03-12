@@ -195,7 +195,6 @@ def createjob(group_name, filename, supress_readme, verbose):
     if not supress_readme:
         aiida_utils.create_READMEtxt()
 
-    fileout = open(group_name+".input.data", "w")
     if filename == False:
         fileout = open("aiida_exported_group_"+group_name+".input.data", "w")
     else:
