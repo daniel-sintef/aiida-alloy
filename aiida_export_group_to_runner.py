@@ -136,7 +136,7 @@ def get_arraysbyname_fromtrajectories(timesorted_trajectories, arrayname):
     timesorted_arrays = [x.get_array(arrayname) for x in timesorted_trajectories]
     return np.concatenate(timesorted_arrays)
 
-def write_pwrelax_torunner(fileout, relax_node, extra_comments={}):
+def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed, verbose, extra_comments={}):
     trajectories = get_timesorted_trajectories(relax_node)
 
     timesorted_cells = get_arraysbyname_fromtrajectories(trajectories, 'cells')
@@ -150,15 +150,26 @@ def write_pwrelax_torunner(fileout, relax_node, extra_comments={}):
     elements = trajectories[0].get_array('symbols') # assume unchangin
 
     extra_comments={"trajectory_step":None}
-    for i in range(len(timesorted_cells)):
-        extra_comments["trajectory_step"] = i
-        write_runner_commentline(fileout, relax_node.uuid, extra_comments=extra_comments)
-        write_runner_cell(fileout, timesorted_cells[i])
-        write_runner_atomlines(fileout,
-           timesorted_positions[i], elements, atomicforce_array=timesorted_forces[i])
-        write_runner_finalline(fileout, energy=timesorted_energy[i])
+    print('relaxation steps:',len(timesorted_cells))
+
+    if write_only_relaxed == False:
+        for i in range(len(timesorted_cells)):
+            extra_comments["trajectory_step"] = i
+            if verbose:
+                a = timesorted_cells[i][0]
+                b = timesorted_cells[i][1]
+                c = timesorted_cells[i][2]
+                vol=np.dot(a,np.cross(b,c))
+                maxforce = np.abs(timesorted_forces[i]).max()
+                print('extra',str(extra_comments).ljust(25," "),"volume",vol,"energy",str(timesorted_energy[i]).ljust(20),"maxforce",maxforce)
+            write_runner_commentline(fileout, relax_node.uuid, extra_comments=extra_comments)
+            write_runner_cell(fileout, timesorted_cells[i])
+            write_runner_atomlines(fileout,
+               timesorted_positions[i], elements, atomicforce_array=timesorted_forces[i])
+            write_runner_finalline(fileout, energy=timesorted_energy[i])
 
     if bool(relax_node.inp.final_scf):
+        print('final')
         final_basenode = get_timesorted_basenodes(relax_node)[-1]
         extra_comments["trajectory_step"] = "final_scf"
         extra_comments["parent_uuid"] = relax_node.uuid
@@ -182,39 +193,52 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
               type=str, help="Group to export identified by name")
 @click.option('-f', '--filename', required=False, default=False,
          type=str, help="filename for outputfile, default = work_group+\".input.data\"")
+@click.option('-wor', '--write_only_relaxed', required=False, default=False,
+         is_flag=True, help="only write the final relaxed structure")
 @click.option('-sreadme', '--supress_readme', is_flag=True,
          help="supresses the generation of a readme file")
 @click.option('-v', '--verbose', is_flag=True,
          type=str, help="Enables verbosity")
-def createjob(group_name, filename, supress_readme, verbose):
+
+
+def createjob(group_name, filename, write_only_relaxed, supress_readme, verbose):
     ''' e.g.
     ./aiida_export_group_to_runner.py -gn Al6xxxDB_structuregroup
     '''
-
     all_nodes = get_allnodes_fromgroup(group_name)
     if not supress_readme:
         aiida_utils.create_READMEtxt()
 
+    add_to_filename = "__all_steps"
+    if write_only_relaxed == True:
+        add_to_filename = "__only_relaxed"
+
     if filename == False:
-        fileout = open("aiida_exported_group_"+group_name+".input.data", "w")
+        file = "aiida_exported_group_"+group_name+add_to_filename+".input.data"
+        fileout = open(file, "w")
     else:
+        file = filename
         fileout = open(filename, "w")
 
     if verbose:
-        print('filename  :', filename)
+        print('file           :', file)
         print('structure_group:', group_name)
 
     for node in all_nodes:
         if verbose:
             print("Writing node: {}".format(node.uuid))
+
         if isinstance(node, StructureData):
+            print('using write_structure_torunner')
             write_structure_torunner(fileout, node)
         elif isinstance(node, WorkCalculation):
             process_label = node.get_attrs()['_process_label']
             if process_label == "PwBaseWorkChain":
+                print('using write_pwbase_torunner')
                 write_pwbase_torunner(fileout, node)
             elif process_label == "PwRelaxWorkChain":
-                write_pwrelax_torunner(fileout, node)
+                print('using write_pwrelax_torunner')
+                write_pwrelax_torunner(fileout, node, write_only_relaxed,verbose)
             else:
                 print("Could not identify node, skipping")
         else:
