@@ -188,6 +188,10 @@ def wf_setupparams(base_parameter, structure,
               help='Force all calculations to use the specified number of nodes')
 @click.option('-memgb', '--memory_gb', default=None,
               help='specify the amount of memory for all jobs in GB')
+@click.option('-nd', '--ndiag', default=None,
+              help='ndiag setting to be passed direct to QE')
+@click.option('-nk', '--npools', default=None,
+              help='npools setting to be passed direct to QE')
 @click.option('-sli', '--sleep_interval', default=10*60,
               help='time to wait (sleep) between calculation submissions')
 @click.option('-zmo', '--z_movement_only', is_flag=True,
@@ -195,12 +199,13 @@ def wf_setupparams(base_parameter, structure,
 @click.option('-rdb', '--run_debug', is_flag=True,
               help='run the script in debug mode. Submits one structure only'
                    ' and does not attach the output to the workchain_group')
-@click.option('-cwd', '--keep_workdir', is_flag=True,
+@click.option('-kwd', '--keep_workdir', is_flag=True,
               help='Keep the workdir files after running')
 def launch(code_node, structure_group_name, workchain_group_name,
            base_parameter_node, pseudo_familyname, kptper_recipang,
            nume2bnd_ratio, calc_method, max_wallclock_seconds, max_active_calculations,
-           number_of_nodes, memory_gb, sleep_interval, z_movement_only, run_debug, keep_workdir):
+           number_of_nodes, memory_gb, ndiag, npools,
+           sleep_interval, z_movement_only, run_debug, keep_workdir):
     from aiida.orm.group import Group
     from aiida.orm.utils import load_node, WorkflowFactory
     from aiida.orm.data.base import Bool, Float, Int, Str
@@ -279,11 +284,16 @@ def launch(code_node, structure_group_name, workchain_group_name,
             options_dict['queue_name'] = 'debug'
         workchain_options = ParameterData(dict=options_dict)
 
-        nk = get_nk(num_machines, code)
+        if npools:
+            nk = npools
+        else:
+            nk = get_nk(num_machines, code)
         settings_dict = {
             'cmdline': ['-nk', nk],
             'no_bands': True
             }
+        if ndiag:
+            settings_dict['cmdline'] += ['-ndiag', ndiag]
         if z_movement_only:
             num_atoms = len(structure.get_ase())
             coordinate_fix = [[True,True,False]]*num_atoms
