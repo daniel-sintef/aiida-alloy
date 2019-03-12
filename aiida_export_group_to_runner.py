@@ -161,7 +161,10 @@ def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed, verbose, ext
                 c = timesorted_cells[i][2]
                 vol=np.dot(a,np.cross(b,c))
                 maxforce = np.abs(timesorted_forces[i]).max()
-                print('extra',str(extra_comments).ljust(25," "),"volume",vol,"energy",str(timesorted_energy[i]).ljust(20),"maxforce",maxforce)
+                print('extra',str(extra_comments).ljust(25," "),
+                      "volume",vol,
+                      "energy",str(timesorted_energy[i]).ljust(20),
+                      "maxforce",maxforce)
             write_runner_commentline(fileout, relax_node.uuid, extra_comments=extra_comments)
             write_runner_cell(fileout, timesorted_cells[i])
             write_runner_atomlines(fileout,
