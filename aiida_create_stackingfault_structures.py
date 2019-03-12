@@ -78,6 +78,9 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
         'lattice_type':lattice_type,
         'surface_plane':surface_plane,
         'matrix_element':matrix_element,
+        'periodic_xrepeats': periodic_xrepeats,
+        'periodic_yrepeats': periodic_yrepeats,
+        'periodic_zrepeats': periodic_zrepeats
                   }
 
     special_points = {'undistorted':[0,0]}
@@ -89,7 +92,7 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
                                           3*periodic_zrepeats],
                                           orthogonal=True,
                                           a=lattice_size)
-       special_points['stable_stacking'] = [2./3., 0]
+       special_points['stable_stacking'] = [0, 2./3.]
        extras['x_direction']  = '<112>'
        extras['y_direction']  = '<110>'
        extras['z_direction']  = '<111>'
