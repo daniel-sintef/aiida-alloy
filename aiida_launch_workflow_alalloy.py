@@ -91,14 +91,15 @@ def get_kmeshfrom_kptper_recipang(aiida_structure, kptper_recipang):
     return kmesh
 
 
-def get_nummachines(structure, a=1*(10**-4), b=1):
+def get_nummachines(structure, pseudo_familyname):
     # NOTE: used very adhoc guess for nodes, assuming quadratic scaling
-    # NOTE: perhaps num_electrons may give a better estimate
-    try:
-        num_atoms = structure.get_extras()['num_atoms']
-    except KeyError:
-        num_atoms = len(structure.get_ase())
-    numnodes = a*num_atoms**2. + b
+    from aiida.orm.data.upf import get_pseudos_from_structure
+    pseudos = get_pseudos_from_structure(structure, pseudo_familyname)
+    num_electrons = get_numelectrons_structure_upffamily(structure, pseudos)
+    a2 = 1.5*10**-6
+    a1 = 5.7*10**-3
+    a0 = 2
+    numnodes = a2*num_electrons**2+a1*num_electrons+a0
     numnodes = max(round(numnodes/2)*2, 2)  # force even # of nodes
     return numnodes
 
@@ -179,7 +180,8 @@ def wf_setupparams(base_parameter, structure,
 @click.option('-ber', '--nume2bnd_ratio', required=True,
               help='band to electron ratio')
 @click.option('-cm', '--calc_method', default='scf',
-              help='The calculation to perform, supported types are: scf, relax, vc-relax')
+              type=click.Choice(["scf", "relax", "vc-relax"]),
+              help='The type of calculation to perform')
 @click.option('-mws', '--max_wallclock_seconds', default=8*60*60,
               help='maximum wallclock time per job in seconds')
 @click.option('-mac', '--max_active_calculations', default=300,
@@ -196,16 +198,18 @@ def wf_setupparams(base_parameter, structure,
               help='time to wait (sleep) between calculation submissions')
 @click.option('-zmo', '--z_movement_only', is_flag=True,
               help='Restricts movement to the z direction only. For relaxing stacking fault')
+@click.option('-kwd', '--keep_workdir', is_flag=True,
+              help='Keep the workdir files after running')
+@click.option('-dr', '--dryrun', is_flag=True,
+              help="Prints inputs but does not launch anything")
 @click.option('-rdb', '--run_debug', is_flag=True,
               help='run the script in debug mode. Submits one structure only'
                    ' and does not attach the output to the workchain_group')
-@click.option('-kwd', '--keep_workdir', is_flag=True,
-              help='Keep the workdir files after running')
 def launch(code_node, structure_group_name, workchain_group_name,
            base_parameter_node, pseudo_familyname, kptper_recipang,
            nume2bnd_ratio, calc_method, max_wallclock_seconds, max_active_calculations,
            number_of_nodes, memory_gb, ndiag, npools,
-           sleep_interval, z_movement_only, run_debug, keep_workdir):
+           sleep_interval, z_movement_only, keep_workdir,dryrun, run_debug):
     from aiida.orm.group import Group
     from aiida.orm.utils import load_node, WorkflowFactory
     from aiida.orm.data.base import Bool, Float, Int, Str
@@ -242,6 +246,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
 
     # submit calculations
     for structure in uncalculated_structures:
+        print "Preparing to launch {}".format(structure)
 
         # ensure no more than the max number of calcs are submitted
         while (calcs_to_submit <= 0):
@@ -270,7 +275,12 @@ def launch(code_node, structure_group_name, workchain_group_name,
         if number_of_nodes:
             num_machines = int(number_of_nodes)
         else:
-            num_machines = get_nummachines(structure)
+            num_machines = get_nummachines(structure, pseudo_familyname)
+            max_nodes_to_submit = 20
+            if num_machines > max_nodes_to_submit:
+                print "{} nodes requested, maximum is {}".format(num_machines, max_nodes_to_submit)
+                print "If you wish to launch please choose nodes manually with --number_of_nodes"
+                continue
         options_dict = {
             'max_wallclock_seconds': max_wallclock_seconds,
             'resources': {'num_machines': num_machines},
@@ -333,17 +343,27 @@ def launch(code_node, structure_group_name, workchain_group_name,
         else:
             raise Exception("Invalid calc_method: {}".format(calc_method))
 
-        node = submit(PwBaseWorkChain, **inputs)
-        end = timer()
-        time_elapsed = end - start
-        print "WorkChain: {} submitted, took {}s".format(node, time_elapsed)
+        def print_timing(start):
+            end = timer()
+            time_elapsed = end - start
+            print "timing: {}s".format(time_elapsed)
+
+        if dryrun:
+            print "ase_structure: {}".format(structure.get_ase())
+            print "aiida_settings: {}".format(settings.get_dict())
+            print "aiida_options: {}".format(workchain_options.get_dict())
+            print "aiida_inputs: {}".format(inputs)
+            print_timing(start)
+        else:
+            node = submit(PwBaseWorkChain, **inputs)
+            workchain_group.add_nodes([node])
+            print "WorkChain: {} submitted".format(node)
+            print_timing(start)
+        calcs_to_submit -= 1
 
         if run_debug:
             sys.exit()
 
-        workchain_group.add_nodes([node])
-
-        calcs_to_submit -= 1
 
 
 
