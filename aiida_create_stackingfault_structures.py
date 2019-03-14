@@ -11,9 +11,9 @@ import numpy as np
 def get_displacements_array(displacement):
     if len(displacement.split(',')) == 3:
        d_min,d_max,d_inc = displacement.split(',')
-       if dmax > 1:
+       if d_max > 1:
            print "WARNING: max displacement {} is larger than 1".format(displacement)
-       displacements = np.arange(d_min,d_max,d_inc)
+       displacements = np.arange(float(d_min),float(d_max),float(d_inc))
     else:
        displacements = np.array([float(displacement)])
     return displacements
