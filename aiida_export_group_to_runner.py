@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from __future__ import print_function
-import aiida
+import aiida,os
 aiida.try_load_dbenv()
 from aiida.orm import Node
 from aiida.orm.querybuilder import QueryBuilder
@@ -10,6 +10,8 @@ from aiida.orm.data.array.trajectory import TrajectoryData
 from aiida.orm.utils import load_node, WorkflowFactory
 import click
 from ase import units
+from ase import Atoms
+from ase.io import write as ase_write
 import aiida_utils
 import sys
 import numpy as np
@@ -165,6 +167,16 @@ def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed, verbose, ext
                       "volume",vol,
                       "energy",str(timesorted_energy[i]).ljust(20),
                       "maxforce",maxforce)
+            ###################################################################
+            # at some point we'll need to update the runner write_runner part
+            # since it can not be read by n2p2 in the current form (also it looks ok)
+            # the ase_write("outt.runner",frame,format='runner',append=True)
+            # works but not in my currently installed aiida version
+            ###################################################################
+            #frame = Atoms(elements, positions=timesorted_positions[i])
+            #frame.set_cell(timesorted_cells[i])
+            #ka = extra_comments["trajectory_step"]
+            #ase_write("outt.runner",frame,format='runner',append=True) #,comment=str(relax_node.uuid+" trajectory_step "+str(ka)+"\n")) #+" "+extra_comments)
             write_runner_commentline(fileout, relax_node.uuid, extra_comments=extra_comments)
             write_runner_cell(fileout, timesorted_cells[i])
             write_runner_atomlines(fileout,
