@@ -17,6 +17,11 @@ the highly unstable Nobelium (element 102) to internally represent vacancies.
 """
 VACANCY_INTERNAL_SYMBOL="No"
 VACANCY_USER_SYMBOL="Vac"
+def prep_elementlist(elementlist):
+    elementlist = list(elementlist.split(','))
+    elementlist = map(lambda x:x if x.lower()!= VACANCY_USER_SYMBOL.lower()
+                      else VACANCY_INTERNAL_SYMBOL, elementlist)
+    return elementlist
 
 GROUP_STRUCTURE_LIST=[]
 
@@ -120,6 +125,11 @@ def store_asestructure(ase_structure, extras, structure_group, dryrun):
     for key in extras:
         if extras[key] == VACANCY_INTERNAL_SYMBOL: extras[key] = VACANCY_USER_SYMBOL
 
+        if key == 'matrix_elements':
+            extras[key] = [(lambda x: x if x != VACANCY_INTERNAL_SYMBOL
+                                         else VACANCY_USER_SYMBOL)(x)
+                                         for x in extras[key]]
+
     # delete all the vacancy sites prior to storage
     del ase_structure[[x.index for x in ase_structure
                        if x.symbol==VACANCY_INTERNAL_SYMBOL or
@@ -196,11 +206,6 @@ def launch(lattice_size,
     if len(supercell_shape) != 3:
         sys.exit("supercell_shape must be of the form Nx,Ny,Nz")
 
-    def prep_elementlist(elementlist):
-        elementlist = list(elementlist.split(','))
-        elementlist = map(lambda x:x if x.lower()!= VACANCY_USER_SYMBOL.lower()
-                          else VACANCY_INTERNAL_SYMBOL, elementlist)
-        return elementlist
 
     firstsolute_elements = prep_elementlist(firstsolute_elements)
     secondsolute_elements = prep_elementlist(secondsolute_elements)
