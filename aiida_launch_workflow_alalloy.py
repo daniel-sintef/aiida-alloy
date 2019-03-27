@@ -7,7 +7,7 @@ from aiida.cmdline.utils import decorators
 import sys
 
 import aiida
-aiida.load_dbenv()
+aiida.try_load_dbenv()
 from aiida.work.workfunctions import workfunction
 
 
@@ -180,7 +180,7 @@ def wf_setupparams(base_parameter, structure,
 @click.option('-ber', '--nume2bnd_ratio', required=True,
               help='band to electron ratio')
 @click.option('-cm', '--calc_method', default='scf',
-              type=click.Choice(["scf", "relax", "vc-relax"]),
+              type=click.Choice(["scf", "relax", "vc-relax", "elastic"]),
               help='The type of calculation to perform')
 @click.option('-mws', '--max_wallclock_seconds', default=8*60*60,
               help='maximum wallclock time per job in seconds')
@@ -216,10 +216,6 @@ def launch(code_node, structure_group_name, workchain_group_name,
     from aiida.orm.data.parameter import ParameterData
     from aiida.work.launch import submit
 
-    valid_calc_methods = ['scf', 'relax', 'vc-relax']
-    if calc_method not in valid_calc_methods:
-        raise Exception("Invalid calc_method: {}".format(calc_method))
-
     # setup parameters
     code = load_node(code_node)
     structure_group = Group.get_from_string(structure_group_name)
@@ -247,6 +243,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
     # submit calculations
     for structure in uncalculated_structures:
         print "Preparing to launch {}".format(structure)
+        print "calcs to submit: {} max calcs:{}".format(calcs_to_submit, max_active_calculations)
 
         # ensure no more than the max number of calcs are submitted
         while (calcs_to_submit <= 0):
@@ -326,20 +323,47 @@ def launch(code_node, structure_group_name, workchain_group_name,
                 'settings': settings,
                 }
         if calc_method == 'scf':
-            PwBaseWorkChain = WorkflowFactory('quantumespresso.pw.base')
+            WorkChain = WorkflowFactory('quantumespresso.pw.base')
             inputs.update(base_inputs)
         elif calc_method == 'relax':
-            PwBaseWorkChain = WorkflowFactory('quantumespresso.pw.relax')
+            WorkChain = WorkflowFactory('quantumespresso.pw.relax')
             inputs['base'] = base_inputs
             inputs['relaxation_scheme'] = Str('relax')
             inputs['final_scf'] = Bool(False)
             inputs['meta_convergence'] = Bool(False)
         elif calc_method == 'vc-relax':
-            PwBaseWorkChain = WorkflowFactory('quantumespresso.pw.relax')
+            WorkChain = WorkflowFactory('quantumespresso.pw.relax')
             inputs['base'] = base_inputs
             inputs['relaxation_scheme'] = Str('vc-relax')
             inputs['final_scf'] = Bool(True)
             inputs['meta_convergence'] = Bool(True)
+        elif calc_method == 'elastic':
+            if run_debug:
+                print("Elastic workflows launch multiple jobs in parallel!")
+            print "WARNING: elastic calculation is experimental!"
+            WorkChain = WorkflowFactory('elastic')
+
+            inputs['initial_relax'] = {}
+            inputs['initial_relax']['base'] = base_inputs
+            inputs['initial_relax']['relaxation_scheme'] = Str('vc-relax')
+            inputs['initial_relax']['final_scf'] = Bool(False)
+            inputs['initial_relax']['meta_convergence'] = Bool(False)
+
+            inputs['elastic_relax'] = {}
+            inputs['elastic_relax']['base'] = base_inputs
+            inputs['elastic_relax']['relaxation_scheme'] = Str('relax')
+            inputs['elastic_relax']['final_scf'] = Bool(False)
+            inputs['elastic_relax']['meta_convergence'] = Bool(False)
+
+            #NOTE: once testing is complete, make these command-line options
+            inputs['num_strain_directions'] = Int(1)
+            inputs['num_strain_magnitudes'] = Int(6)
+            inputs['max_strain_magnitude'] = Float(0.02)
+            #sys.exit(ElasticWorkChain)
+            print "AiiDA Elastic is forced to run!"
+            from aiida.work.launch import run
+            node = submit(WorkChain, **inputs)
+            sys.exit(node)
         else:
             raise Exception("Invalid calc_method: {}".format(calc_method))
 
@@ -355,15 +379,15 @@ def launch(code_node, structure_group_name, workchain_group_name,
             print "aiida_inputs: {}".format(inputs)
             print_timing(start)
         else:
-            node = submit(PwBaseWorkChain, **inputs)
-            workchain_group.add_nodes([node])
+            node = submit(WorkChain, **inputs)
             print "WorkChain: {} submitted".format(node)
             print_timing(start)
-        calcs_to_submit -= 1
 
         if run_debug:
             sys.exit()
 
+        workchain_group.add_nodes([node])
+        calcs_to_submit -= 1
 
 
 
