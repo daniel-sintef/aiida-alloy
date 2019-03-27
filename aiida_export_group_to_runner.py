@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from __future__ import print_function
-import aiida,os
+import aiida
 aiida.try_load_dbenv()
 from aiida.orm import Node
 from aiida.orm.querybuilder import QueryBuilder
@@ -14,6 +14,7 @@ from ase import Atoms
 from ase.io import write as ase_write
 import aiida_utils
 import sys
+import os
 import numpy as np
 
 #Define unit conversions
