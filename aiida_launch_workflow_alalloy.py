@@ -355,13 +355,9 @@ def launch(code_node, structure_group_name, workchain_group_name,
             inputs['elastic_relax']['final_scf'] = Bool(False)
             inputs['elastic_relax']['meta_convergence'] = Bool(False)
 
-            #NOTE: once testing is complete, make these command-line options
-            inputs['num_strain_directions'] = Int(1)
-            inputs['num_strain_magnitudes'] = Int(6)
-            inputs['max_strain_magnitude'] = Float(0.02)
-            #sys.exit(ElasticWorkChain)
-            print "AiiDA Elastic is forced to run!"
-            from aiida.work.launch import run
+            #inputs['num_strain_directions'] = Int(1)
+            inputs['num_strain_magnitudes'] = Int(4)
+            inputs['max_strain_magnitude'] = Float(0.01)
             node = submit(WorkChain, **inputs)
             sys.exit(node)
         else:
