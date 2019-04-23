@@ -1,0 +1,9 @@
+{
+    "name": "aiida-alloy",
+    "entry_points": {
+        "aiida.workflows": [
+            "alloy.elastic = aiida_alloy.workflows.ElasticWorkChain:ElasticWorkChain"
+        ]
+    },
+    "reentry_register": true
+}

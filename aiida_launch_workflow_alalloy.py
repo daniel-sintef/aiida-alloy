@@ -198,6 +198,10 @@ def wf_setupparams(base_parameter, structure,
               help='time to wait (sleep) between calculation submissions')
 @click.option('-zmo', '--z_movement_only', is_flag=True,
               help='Restricts movement to the z direction only. For relaxing stacking fault')
+@click.option('-strmg', '--strain_magnitudes', default=None,
+              help='A comma seperated list of strain magnitudes. Only used for elastic workchain')
+@click.option('-astr', '--use_all_strains', is_flag=True,
+              help='Force use of all strains. Only used for elastic workchain')
 @click.option('-kwd', '--keep_workdir', is_flag=True,
               help='Keep the workdir files after running')
 @click.option('-dr', '--dryrun', is_flag=True,
@@ -209,10 +213,11 @@ def launch(code_node, structure_group_name, workchain_group_name,
            base_parameter_node, pseudo_familyname, kptper_recipang,
            nume2bnd_ratio, calc_method, max_wallclock_seconds, max_active_calculations,
            number_of_nodes, memory_gb, ndiag, npools,
-           sleep_interval, z_movement_only, keep_workdir,dryrun, run_debug):
+           sleep_interval, z_movement_only, strain_magnitudes, use_all_strains,
+           keep_workdir,dryrun, run_debug):
     from aiida.orm.group import Group
     from aiida.orm.utils import load_node, WorkflowFactory
-    from aiida.orm.data.base import Bool, Float, Int, Str
+    from aiida.orm.data.base import Bool, Float, Int, Str, List
     from aiida.orm.data.parameter import ParameterData
     from aiida.work.launch import submit
 
@@ -341,24 +346,26 @@ def launch(code_node, structure_group_name, workchain_group_name,
             if run_debug:
                 print("Elastic workflows launch multiple jobs in parallel!")
             print "WARNING: elastic calculation is experimental!"
-            WorkChain = WorkflowFactory('elastic')
-
-            inputs['initial_relax'] = {}
-            inputs['initial_relax']['base'] = base_inputs
+            WorkChain = WorkflowFactory('alloy.elastic')
+            relax_inputs = {} 
+            relax_inputs['base'] = base_inputs
+            relax_inputs['final_scf'] = Bool(False)
+            relax_inputs['meta_convergence'] = Bool(False)
+            inputs['initial_relax'] =  relax_inputs
             inputs['initial_relax']['relaxation_scheme'] = Str('vc-relax')
-            inputs['initial_relax']['final_scf'] = Bool(False)
-            inputs['initial_relax']['meta_convergence'] = Bool(False)
-
-            inputs['elastic_relax'] = {}
-            inputs['elastic_relax']['base'] = base_inputs
+            inputs['elastic_relax'] =  relax_inputs
             inputs['elastic_relax']['relaxation_scheme'] = Str('relax')
-            inputs['elastic_relax']['final_scf'] = Bool(False)
-            inputs['elastic_relax']['meta_convergence'] = Bool(False)
 
-            #inputs['num_strain_directions'] = Int(1)
-            inputs['num_strain_magnitudes'] = Int(4)
-            inputs['max_strain_magnitude'] = Float(0.01)
-            node = submit(WorkChain, **inputs)
+            if strain_magnitudes:
+                strain_magnitudes = [float(x) for x in strain_magnitudes.split(',')]
+                inputs['strain_magnitudes'] = List(list=strain_magnitudes)
+            
+            if use_all_strains:
+                inputs['symmetric_strains_only'] = Bool(False)
+
+            #node = submit(WorkChain, **inputs)
+            from aiida.work.launch import run 
+            node = run(WorkChain, **inputs)
             sys.exit(node)
         else:
             raise Exception("Invalid calc_method: {}".format(calc_method))
