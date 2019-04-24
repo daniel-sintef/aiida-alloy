@@ -327,34 +327,35 @@ def launch(code_node, structure_group_name, workchain_group_name,
                 'options': workchain_options,
                 'settings': settings,
                 }
+        relax_inputs = {
+            'base': base_inputs,
+            'relaxation_scheme': Str('relax'),
+            'final_scf' : Bool(False),
+            'meta_convergence' : Bool(False)
+        }
+        vcrelax_inputs = {
+            'base': base_inputs,
+            'relaxation_scheme': Str('vc-relax'),
+            'final_scf' : Bool(False),
+            'meta_convergence' : Bool(False)
+        }
         if calc_method == 'scf':
             WorkChain = WorkflowFactory('quantumespresso.pw.base')
             inputs.update(base_inputs)
         elif calc_method == 'relax':
             WorkChain = WorkflowFactory('quantumespresso.pw.relax')
-            inputs['base'] = base_inputs
-            inputs['relaxation_scheme'] = Str('relax')
-            inputs['final_scf'] = Bool(False)
-            inputs['meta_convergence'] = Bool(False)
+            inputs.update(relax_inputs)
         elif calc_method == 'vc-relax':
             WorkChain = WorkflowFactory('quantumespresso.pw.relax')
-            inputs['base'] = base_inputs
-            inputs['relaxation_scheme'] = Str('vc-relax')
-            inputs['final_scf'] = Bool(True)
-            inputs['meta_convergence'] = Bool(True)
+            inputs.update(vcrelax_inputs)
         elif calc_method == 'elastic':
             if run_debug:
                 print("Elastic workflows launch multiple jobs in parallel!")
-            print "WARNING: elastic calculation is experimental!"
-            WorkChain = WorkflowFactory('alloy.elastic')
+            WorkChain = WorkflowFactory('elastic')
             relax_inputs = {} 
             relax_inputs['base'] = base_inputs
-            relax_inputs['final_scf'] = Bool(False)
-            relax_inputs['meta_convergence'] = Bool(False)
-            inputs['initial_relax'] =  relax_inputs
-            inputs['initial_relax']['relaxation_scheme'] = Str('vc-relax')
+            inputs['initial_relax'] =  vcrelax_inputs
             inputs['elastic_relax'] =  relax_inputs
-            inputs['elastic_relax']['relaxation_scheme'] = Str('relax')
 
             if strain_magnitudes:
                 strain_magnitudes = [float(x) for x in strain_magnitudes.split(',')]
@@ -362,11 +363,6 @@ def launch(code_node, structure_group_name, workchain_group_name,
             
             if use_all_strains:
                 inputs['symmetric_strains_only'] = Bool(False)
-
-            #node = submit(WorkChain, **inputs)
-            from aiida.work.launch import run 
-            node = run(WorkChain, **inputs)
-            sys.exit(node)
         else:
             raise Exception("Invalid calc_method: {}".format(calc_method))
 

@@ -1,9 +1,45 @@
 {
     "name": "aiida-alloy",
+    "author": "The AiiDA developers group",
+    "author_email": "",
+    "description": "Aiida Workflows for Elastic Constants using Quantum Espresso",
+    "url": "https://github.com/aiidateam/aiida-alloy",
+    "license": "MIT",
+    "classifiers": [
+        "Programming Language :: Python"
+    ],
+    "version": "0.1.0a0",
     "entry_points": {
         "aiida.workflows": [
-            "alloy.elastic = aiida_alloy.workflows.ElasticWorkChain:ElasticWorkChain"
+            "elastic = aiida_alloy.workflows.ElasticWorkChain:ElasticWorkChain"
         ]
     },
-    "reentry_register": true
+    "include_package_data": true,
+    "setup_requires": ["reentry"],
+    "reentry_register": true,
+    "install_requires": [
+        "aiida-core>=1.0.0a0; python_version >= '2'",
+        "six",
+        "voluptuous"
+    ],
+    "extras_require": {
+        "testing": [
+            "mock==2.0.0",
+            "pgtest==1.1.0",
+            "sqlalchemy-diff==0.1.3",
+            "wheel>=0.31",
+            "coverage",
+            "pytest==3.6.3",
+            "pytest-cov==2.6.0"
+        ],
+        "pre-commit": [
+            "pre-commit==1.11.0",
+            "yapf==0.24.0",
+            "prospector==0.12.11",
+            "pylint==1.9.3"
+        ],
+        "docs": [
+            "sphinx"
+        ]
+    }
 }
