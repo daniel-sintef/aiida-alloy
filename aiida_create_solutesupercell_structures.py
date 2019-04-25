@@ -18,6 +18,8 @@ the highly unstable Nobelium (element 102) to internally represent vacancies.
 VACANCY_INTERNAL_SYMBOL="No"
 VACANCY_USER_SYMBOL="Vac"
 def prep_elementlist(elementlist):
+    if elementlist is None or len(elementlist) == 0:
+        return []
     elementlist = list(elementlist.split(','))
     elementlist = map(lambda x:x if x.lower()!= VACANCY_USER_SYMBOL.lower()
                       else VACANCY_INTERNAL_SYMBOL, elementlist)
@@ -265,12 +267,13 @@ def launch(lattice_size,
                 secondsol_distance = nn_distanceindex_frame['distances'][i]
                 secondsol_extras['sol1sol2_distance'] = secondsol_distance
 
-                if maximum_nn_index and i > int(maximum_nn_index):
-                    break
-                if maximum_nn_distance and secondsol_distance > float(maximum_nn_distance):
-                    break
                 store_asestructure(secondsol_structure, secondsol_extras,
                                    structure_group, dryrun)
+
+                if maximum_nn_index and i >= int(maximum_nn_index):
+                    break
+                if maximum_nn_distance and secondsol_distance >= float(maximum_nn_distance):
+                    break
 
         previously_generated_firstsol_elements += [firstsolute_element]
 
