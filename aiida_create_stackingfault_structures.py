@@ -63,6 +63,8 @@ def get_layer_frame(structure, miller_index):
                    "Overides the displacement_{x,y} commands. "
                    "May not be defined for all lattice/surface combinations. "
                    "Useful for benchmarking.")
+@click.option('-prm', '--primitive', is_flag=True,
+              help="Create primitive cell version (i.e non-orthogonal). ")
 @click.option('-se', '--solute_elements', required=False,
               help="Solute element, created at unique distances from the stacking fault."
               " Will force the construction of a stable stacking fault."
@@ -82,7 +84,7 @@ def get_layer_frame(structure, miller_index):
 def launch(lattice_size, matrix_element, lattice_and_surface,
            periodic_xrepeats, periodic_yrepeats, periodic_zrepeats,
            displacement_x, displacement_y, special_pointsonly,
-           solute_elements, maxsolute_layer,
+           primitive, solute_elements, maxsolute_layer,
            structure_group_name, structure_group_description,
            dryrun):
     """
@@ -100,6 +102,7 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
     lattice_size = float(lattice_size)
     lattice_type, surface_plane = lattice_and_surface.split('_')
     surface_plane = "{"+str(surface_plane)+"}"
+    orthogonal = not primitive
 
     extras = {
         'lattice_size':lattice_size,
@@ -113,17 +116,26 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
 
     special_points = {'undistorted':[0,0]}
     if lattice_and_surface == "FCC_111":
-       undistorted_structure = ase.build.fcc111(
-                                            matrix_element,
-                                           [periodic_xrepeats,
-                                          2*periodic_yrepeats,
-                                          3*periodic_zrepeats],
-                                          orthogonal=True,
-                                          a=lattice_size)
-       special_points[STABLE_STACKING_NAME] = [0, 2./3.]
-       extras['x_direction']  = '<112>'
-       extras['y_direction']  = '<110>'
+       xrepeats = periodic_xrepeats
+       zrepeats = 3*periodic_zrepeats
        extras['z_direction']  = '<111>'
+       if orthogonal:
+           yrepeats = 2*periodic_yrepeats
+           extras['x_direction']  = '<112>'
+           extras['y_direction']  = '<110>'
+           extras['orthogonal'] = 'True'
+           special_points[STABLE_STACKING_NAME] = [0, 2./3.]
+       else:
+           yrepeats = periodic_yrepeats
+           extras['x_direction']  = '<110>'
+           extras['y_direction']  = '<110>'
+           extras['orthogonal'] = 'False'
+           special_points[STABLE_STACKING_NAME] = [1./3., 1./3.]
+       undistorted_structure = ase.build.fcc111(
+                                          matrix_element,
+                                          [xrepeats,yrepeats,zrepeats],
+                                          orthogonal=orthogonal,
+                                          a=lattice_size)
     else:
        raise Exception("Could not process lattice_and_surface: {}".format(lattice_and_surface))
 
@@ -177,7 +189,7 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
             extras['sol1sf_distance'] = layer_frame.loc[i]['layer_distance']
             extras['sol1layer_index'] = int(layer_frame.loc[i]['layer_distance'])
             store_asestructure(solute_structure, extras, structure_group, dryrun)
-            if maxsolute_layer and i >= int(maximum_nn_index):
+            if maxsolute_layer and i >= int(maxsolute_layer):
                 break
 
 
