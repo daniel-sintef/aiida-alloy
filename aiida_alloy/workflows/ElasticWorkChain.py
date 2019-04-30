@@ -104,6 +104,7 @@ class ElasticWorkChain(WorkChain):
         NOTE: I would really like to modify this to be flexible (LAMMPS or QE)
         '''
         workchain = self.ctx.initial_relax_workchain
+        self.report('Getting relaxed structure stresses')
 
         if not workchain.is_finished_ok:
             self.report('PwRelaxWorkChain<{}> failed with exit status {}'
@@ -116,11 +117,13 @@ class ElasticWorkChain(WorkChain):
 
             self.ctx.ground_state_structure = workchain.out.output_structure
             self.ctx.ground_state_stress = Stress(stress)
+        self.report('Finished getting relaxed structure stresses')
 
     def get_deformed_structures(self):
         """
         Determines the set of strains to be applied and generates the deformed structures
         """
+        self.report('Getting deformed structures')
         strain_magnitudes = self.inputs.strain_magnitudes
         structure_mat = self.ctx.ground_state_structure.get_pymatgen_structure()
         deformed_mat_set = DeformedStructureSet(structure_mat, 
@@ -130,9 +133,9 @@ class ElasticWorkChain(WorkChain):
         self.ctx.symmetry_operations_dict = {}
         self.ctx.deformations = deformed_mat_set.deformations
         if self.inputs.symmetric_strains_only:
-            self.ctx.symmetry_operations_dict = symmetry_reduce(self.ctx.deformations,
+            symmetry_operations_dict = symmetry_reduce(self.ctx.deformations,
                                                                 structure_mat)
-            self.ctx.deformations = [x for x in self.ctx.symmetry_operations_dict]
+            self.ctx.deformations = [x for x in symmetry_operations_dict]
         
         self.ctx.deformed_structures = []
         self.ctx.strains = []
@@ -141,6 +144,7 @@ class ElasticWorkChain(WorkChain):
             deformed_structure = StructureData(pymatgen_structure=mg_deformed_structure)
             self.ctx.deformed_structures.append(deformed_structure)
             self.ctx.strains.append(self.ctx.deformations[i].green_lagrange_strain)
+        self.report('Finished getting deformed structures')
 
 
 
@@ -150,6 +154,7 @@ class ElasticWorkChain(WorkChain):
 
         NOTE: I would really like to modify this to be flexible (LAMMPS or QE)
         '''
+        self.report('Computing deformed structures')
         deformed_structures = self.ctx.deformed_structures
 
         for deformed_structure in deformed_structures:
@@ -165,6 +170,7 @@ class ElasticWorkChain(WorkChain):
         '''
         Retrieve final stress from the defomed structure relax workflows
         '''
+        self.report('Gathering computed stresses')
         deformed_workchains = self.ctx.deformed_workchains
 
         computed_stresses = []
@@ -187,6 +193,7 @@ class ElasticWorkChain(WorkChain):
         """
         Fit the elastic tensor to the computed stresses & strains
         """
+        self.report('Fitting elastic tensor')
         symm_equivalent_strains = copy.deepcopy(self.ctx.strains)
         symm_equivalent_stresses = copy.deepcopy(self.ctx.stresses)
 
@@ -195,7 +202,10 @@ class ElasticWorkChain(WorkChain):
             deformation = self.ctx.deformations[i]
             symmetry_operations = []
             if self.inputs.symmetric_strains_only:
-                symmetry_operations = [x for x in self.ctx.symmetry_operations_dict[deformation]]
+                structure_mat = self.ctx.ground_state_structure.get_pymatgen_structure()
+                symmetry_operations_dict = symmetry_reduce(self.ctx.deformations,
+                                                                structure_mat)
+                symmetry_operations = [x for x in symmetry_operations_dict[deformation]]
             for symm_op in symmetry_operations:
                 symm_equivalent_strains.append(self.ctx.strains[i].transform(symm_op))
                 symm_equivalent_stresses.append(self.ctx.stresses[i].transform(symm_op))
@@ -214,6 +224,7 @@ class ElasticWorkChain(WorkChain):
 
 
     def set_outputs(self):
+        self.report('Setting Outputs')
         elastic_outputs = ArrayData()
 
         #An ugly ugly function to make the symmetry_operations_dict storable
@@ -221,7 +232,11 @@ class ElasticWorkChain(WorkChain):
             aiida_symmopdict = dict((str(k).replace('.',','), [x.as_dict() for x in v])
                                     for k, v in symmopdict.iteritems()) 
             return aiida_symmopdict
-        symmetry_mapping = make_symmopdict_aiidafriendly(self.ctx.symmetry_operations_dict)
+
+        structure_mat = self.ctx.ground_state_structure.get_pymatgen_structure()
+        symmetry_operations_dict = symmetry_reduce(self.ctx.deformations,
+                                                        structure_mat)
+        symmetry_mapping = make_symmopdict_aiidafriendly(symmetry_operations_dict)
         symmetry_mapping = ParameterData(dict=symmetry_mapping)
 
         elastic_outputs.set_array('strains', np.array(self.ctx.strains))
