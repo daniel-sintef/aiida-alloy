@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 import click
 import time
-from aiida.cmdline.params import options, arguments
-from aiida.cmdline.params.types import DataParamType
-from aiida.cmdline.utils import decorators
 import sys
 
 import aiida
 aiida.try_load_dbenv()
 from aiida.work.workfunctions import workfunction
+from aiida.orm.data.parameter import ParameterData
 
 
 def retrieve_alluncalculated_structures(structure_group_name,
@@ -149,9 +147,18 @@ def wf_getkpoints(aiida_structure, kptper_recipang):
 
 @workfunction
 def wf_setupparams(base_parameter, structure,
-                   pseudo_familyname, nume2bnd_ratio):
+                   pseudo_familyname, nume2bnd_ratio,
+                   additional_parameter):
         from aiida.orm.data.upf import get_pseudos_from_structure
-        from aiida.orm.data.parameter import ParameterData
+
+        import collections
+        def update(d, u):
+            for k, v in u.iteritems():
+                if isinstance(v, collections.Mapping):
+                    d[k] = update(d.get(k, {}), v)
+                else:
+                    d[k] = v
+            return d
 
         pseudos = get_pseudos_from_structure(structure, pseudo_familyname.value)
         nelec = get_numelectrons_structure_upffamily(structure, pseudos)
@@ -159,6 +166,9 @@ def wf_setupparams(base_parameter, structure,
         nbnd = max(nbnd, 20) # minimum of 20 bands to avoid certain crashes
         parameter_dict = base_parameter.get_dict()
         parameter_dict['SYSTEM']['nbnd'] = nbnd
+
+        additional_dict = additional_parameter.get_dict()
+        parameter_dict.update(additional_dict)
         parameters = ParameterData(dict=parameter_dict)
 
         return parameters
@@ -182,6 +192,8 @@ def wf_setupparams(base_parameter, structure,
 @click.option('-cm', '--calc_method', default='scf',
               type=click.Choice(["scf", "relax", "vc-relax", "elastic"]),
               help='The type of calculation to perform')
+@click.option('-pct', '--press_conv_thr', default=None,
+              help='Specify the pressure conv threshold in Kbar (vc-relax only)')
 @click.option('-mws', '--max_wallclock_seconds', default=8*60*60,
               help='maximum wallclock time per job in seconds')
 @click.option('-mac', '--max_active_calculations', default=300,
@@ -198,9 +210,11 @@ def wf_setupparams(base_parameter, structure,
               help='time to wait (sleep) between calculation submissions')
 @click.option('-zmo', '--z_movement_only', is_flag=True,
               help='Restricts movement to the z direction only. For relaxing stacking fault')
-@click.option('-strmg', '--strain_magnitudes', default=None,
+@click.option('-zco', '--z_cellrelax_only', is_flag=True,
+              help='Restricts vc-relax to the z direction only. For relaxing stacking fault')
+@click.option('-stm', '--strain_magnitudes', default=None,
               help='A comma seperated list of strain magnitudes. Only used for elastic workchain')
-@click.option('-astr', '--use_all_strains', is_flag=True,
+@click.option('-uas', '--use_all_strains', is_flag=True,
               help='Force use of all strains. Only used for elastic workchain')
 @click.option('-kwd', '--keep_workdir', is_flag=True,
               help='Keep the workdir files after running')
@@ -211,10 +225,12 @@ def wf_setupparams(base_parameter, structure,
                    ' and does not attach the output to the workchain_group')
 def launch(code_node, structure_group_name, workchain_group_name,
            base_parameter_node, pseudo_familyname, kptper_recipang,
-           nume2bnd_ratio, calc_method, max_wallclock_seconds, max_active_calculations,
+           nume2bnd_ratio, press_conv_thr,
+           calc_method, max_wallclock_seconds, max_active_calculations,
            number_of_nodes, memory_gb, ndiag, npools,
-           sleep_interval, z_movement_only, strain_magnitudes, use_all_strains,
-           keep_workdir,dryrun, run_debug):
+           sleep_interval, z_movement_only, z_cellrelax_only,
+           strain_magnitudes, use_all_strains,
+           keep_workdir, dryrun, run_debug):
     from aiida.orm.group import Group
     from aiida.orm.utils import load_node, WorkflowFactory
     from aiida.orm.data.base import Bool, Float, Int, Str, List
@@ -264,11 +280,24 @@ def launch(code_node, structure_group_name, workchain_group_name,
         from timeit import default_timer as timer
         start = timer()
 
+        # add any additional parameters specified from cli
+        additional_dict = {}
+        if press_conv_thr:
+            if "CELL" not in additional_dict:
+               additional_dict["CELL"] = {}
+            additional_dict["CELL"]["press_conv_thr"] = float(press_conv_thr)
+        if z_cellrelax_only:
+            if "CELL" not in additional_dict:
+               additional_dict["CELL"] = {}
+            additional_dict["CELL"]["cell_dofree"] = "z"
+
         # determine number of bands & setup the parameters
+        additional_parameter = ParameterData(dict=additional_dict)
         parameters = wf_setupparams(base_parameter,
                                     structure,
                                     Str(pseudo_familyname),
-                                    Float(nume2bnd_ratio))
+                                    Float(nume2bnd_ratio),
+                                    additional_parameter)
 
         # determine kpoint mesh & setup kpoints
         kpoints = wf_getkpoints(structure, Int(kptper_recipang))
@@ -350,17 +379,13 @@ def launch(code_node, structure_group_name, workchain_group_name,
             inputs.update(vcrelax_inputs)
         elif calc_method == 'elastic':
             if run_debug:
-                print("Elastic workflows launch multiple jobs in parallel!")
+                print("Using debug queue with elastic workchain is not advised!")
             WorkChain = WorkflowFactory('elastic')
-            relax_inputs = {} 
-            relax_inputs['base'] = base_inputs
-            inputs['initial_relax'] =  vcrelax_inputs
-            inputs['elastic_relax'] =  relax_inputs
-
+            inputs['initial_relax'] = vcrelax_inputs
+            inputs['elastic_relax'] = relax_inputs
             if strain_magnitudes:
                 strain_magnitudes = [float(x) for x in strain_magnitudes.split(',')]
                 inputs['strain_magnitudes'] = List(list=strain_magnitudes)
-            
             if use_all_strains:
                 inputs['symmetric_strains_only'] = Bool(False)
         else:
