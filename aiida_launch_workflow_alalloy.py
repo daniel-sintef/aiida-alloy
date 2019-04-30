@@ -173,6 +173,14 @@ def wf_setupparams(base_parameter, structure,
 
         return parameters
 
+@workfunction
+def wf_delete_vccards(parameter):
+    new_dict = parameter.get_dict()
+    if 'CELL' in new_dict:
+        del new_dict['CELL']
+    return ParameterData(dict=new_dict)
+
+
 
 @click.command()
 @click.option('-c', '--code_node', required=True,
@@ -362,6 +370,9 @@ def launch(code_node, structure_group_name, workchain_group_name,
             'final_scf' : Bool(False),
             'meta_convergence' : Bool(False)
         }
+        relax_base_param = wf_delete_vccards(relax_inputs['base']['parameters'])
+        relax_inputs['base']['parameters'] = relax_base_param
+
         vcrelax_inputs = {
             'base': base_inputs,
             'relaxation_scheme': Str('vc-relax'),
