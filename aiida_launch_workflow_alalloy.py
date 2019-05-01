@@ -19,7 +19,7 @@ def retrieve_alluncalculated_structures(structure_group_name,
     sqb = QueryBuilder()
     sqb.append(Group, filters={'name': structure_group_name}, tag='g')
     sqb.append(StructureData, project='id', tag='s', member_of='g')
-    sqb.append(WorkCalculation, tag='job', output_of='s')
+    sqb.append(WorkCalculation, tag='job', descendant_of='s')
 
     filters = {}
     if workchain_group_name:
@@ -124,6 +124,24 @@ def get_nk(num_machines, code):
 
     return nk
 
+@workfunction
+def wf_getconventionalstructure(structuredata):
+    '''
+    Standardize an AiiDA StructureData object via pymatgen Structure
+        using spglib
+    :param structuredata: original StructureData
+    '''
+    from aiida.orm.data.structure import StructureData
+    from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+
+    mg_structure = structuredata.get_pymatgen()
+    sga = SpacegroupAnalyzer(mg_structure)
+    standard_structure = sga.get_conventional_standard_structure()
+    standard_structuredata = StructureData(pymatgen_structure=standard_structure)
+
+    return standard_structuredata
+
+
 
 @workfunction
 def wf_getkpoints(aiida_structure, kptper_recipang):
@@ -200,6 +218,8 @@ def wf_delete_vccards(parameter):
 @click.option('-cm', '--calc_method', default='scf',
               type=click.Choice(["scf", "relax", "vc-relax", "elastic"]),
               help='The type of calculation to perform')
+@click.option('-ucs', '--use_conventional_structure', is_flag=True,
+              help='Turns the input structure to its pymatgen conventional form prior to running')
 @click.option('-pct', '--press_conv_thr', default=None,
               help='Specify the pressure conv threshold in Kbar (vc-relax only)')
 @click.option('-mws', '--max_wallclock_seconds', default=8*60*60,
@@ -232,23 +252,27 @@ def wf_delete_vccards(parameter):
               help='Keep the workdir files after running')
 @click.option('-dr', '--dryrun', is_flag=True,
               help="Prints inputs but does not launch anything")
+@click.option('-sdb', '--submit_debug', is_flag=True,
+              help='submit the script to debug queue. Submits one structure only'
+                   ' and does not attach the output to the workchain_group')
 @click.option('-rdb', '--run_debug', is_flag=True,
-              help='run the script in debug mode. Submits one structure only'
+              help='run the script in debug mode. runs first calc then exitsj'
                    ' and does not attach the output to the workchain_group')
 def launch(code_node, structure_group_name, workchain_group_name,
            base_parameter_node, pseudo_familyname, kptper_recipang,
            nume2bnd_ratio, press_conv_thr,
-           calc_method, max_wallclock_seconds, max_active_calculations,
+           calc_method, use_conventional_structure,
+           max_wallclock_seconds, max_active_calculations,
            max_nodes_submit, max_atoms_submit,
            number_of_nodes, memory_gb, ndiag, npools,
            sleep_interval, z_movement_only, z_cellrelax_only,
            strain_magnitudes, use_all_strains,
-           keep_workdir, dryrun, run_debug):
+           keep_workdir, dryrun, submit_debug, run_debug):
     from aiida.orm.group import Group
     from aiida.orm.utils import load_node, WorkflowFactory
     from aiida.orm.data.base import Bool, Float, Int, Str, List
     from aiida.orm.data.parameter import ParameterData
-    from aiida.work.launch import submit
+    from aiida.work.launch import submit, run
 
     # setup parameters
     code = load_node(code_node)
@@ -256,7 +280,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
     workchain_group = Group.get_or_create(name=workchain_group_name)[0]
     base_parameter = load_node(base_parameter_node)
     # announce if running in debug mode
-    if run_debug:
+    if submit_debug:
         print "Running in debug mode!"
 
     # Load all the structures in the structure group, not-yet run in workchain_group_name
@@ -276,10 +300,12 @@ def launch(code_node, structure_group_name, workchain_group_name,
 
     # submit calculations
     for structure in uncalculated_structures:
+        if use_conventional_structure:
+            structure = wf_getconventionalstructure(structure)
         print "Preparing to launch {}".format(structure)
         print "calcs to submit: {} max calcs:{}".format(calcs_to_submit, max_active_calculations)
 
-        if len(structure) > max_atoms_submit:
+        if len(structure.get_ase()) > max_atoms_submit:
             print "{} has more atoms than the max allowed {}".format(structure, max_atoms_submit)
             print "If you wish to overide please use --max_atoms_submit"
             continue
@@ -335,7 +361,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
         }
         if memory_gb:
             options_dict['max_memory_kb'] = int(int(memory_gb)*1024*1024)
-        if run_debug:
+        if submit_debug:
             num_machines = 2
             options_dict['resources']['num_machines'] = num_machines
             options_dict['max_wallclock_seconds'] = int(30*60)
@@ -398,7 +424,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
             WorkChain = WorkflowFactory('quantumespresso.pw.relax')
             inputs.update(vcrelax_inputs)
         elif calc_method == 'elastic':
-            if run_debug:
+            if submit_debug:
                 print("Using debug queue with elastic workchain is not advised!")
             WorkChain = WorkflowFactory('elastic')
             inputs['initial_relax'] = vcrelax_inputs
@@ -422,12 +448,15 @@ def launch(code_node, structure_group_name, workchain_group_name,
             print "aiida_options: {}".format(workchain_options.get_dict())
             print "aiida_inputs: {}".format(inputs)
             print_timing(start)
+        elif run_debug:
+            run(WorkChain, **inputs)
+            sys.exit()
         else:
             node = submit(WorkChain, **inputs)
             print "WorkChain: {} submitted".format(node)
             print_timing(start)
 
-        if run_debug:
+        if submit_debug:
             sys.exit()
 
         workchain_group.add_nodes([node])

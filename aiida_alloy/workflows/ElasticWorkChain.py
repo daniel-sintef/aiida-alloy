@@ -14,22 +14,6 @@ from aiida.work.workchain import WorkChain, ToContext, if_, append_
 from aiida_quantumespresso.workflows.pw.relax import PwRelaxWorkChain
 from aiida.work.workfunctions import workfunction
 
-@workfunction
-def get_conventional_structure(structuredata):
-    '''
-    Standardize an AiiDA StructureData object via pymatgen Structure
-        using spglib
-    :param structuredata: original StructureData
-    '''
-    from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
-
-    mg_structure = structuredata.get_pymatgen()
-    sga = SpacegroupAnalyzer(mg_structure)
-    standard_structure = sga.get_conventional_standard_structure()
-    standard_structuredata = StructureData(pymatgen_structure=standard_structure)
-
-    return standard_structuredata
-
 def get_qerelax_stress(workchain):
     '''
     Get the stress output of a PwRelaxWorkchain
@@ -41,6 +25,55 @@ def get_qerelax_stress(workchain):
     stress = np.array(output_parameters_dict[u'stress'])
     return stress
 
+def _get_deformed_structures(equilibrium_structure, strain_magnitudes, 
+                             symmetric_strains_only=True):
+    deformed_mat_set = DeformedStructureSet(equilibrium_structure, 
+                                            norm_strains=strain_magnitudes, 
+                                            shear_strains=strain_magnitudes)
+
+    symmetry_operations_dict = {}
+    deformations = deformed_mat_set.deformations
+    if symmetric_strains_only:
+        symmetry_operations_dict = symmetry_reduce(deformations,equilibrium_structure)
+        deformations = [x for x in symmetry_operations_dict]
+
+    deformed_structures = []
+    for i in range(len(deformations)):
+        mg_deformed_structure = deformations[i].apply_to_structure(equilibrium_structure)
+        deformed_structure = StructureData(pymatgen_structure=mg_deformed_structure)
+        deformed_structures.append(deformed_structure)
+
+    return deformations, deformed_structures
+
+def _fit_elastic_tensor(stresses, strains, strain_magnitudes, 
+                        equilibrium_structure, equilibrium_stress,  
+                        symmetric_strains_only=True):
+
+    symm_eql_stresses = copy.deepcopy(stresses)
+    symm_eql_strains = copy.deepcopy(strains)
+
+    if symmetric_strains_only:
+        all_deformations = _get_deformed_structures(equilibrium_structure, 
+                                                    strain_magnitudes,
+                                                    symmetric_strains_only=False)[0]
+        symmetry_operations_dict = symmetry_reduce(all_deformations, equilibrium_structure)
+        deformations = [deformation for deformation in symmetry_operations_dict]
+        for i in range(len(deformations)):
+            deformation = deformations[i]
+            symmetry_operations = [x for x in symmetry_operations_dict[deformation]]
+            for symm_op in symmetry_operations:
+                symm_eql_strains.append(strains[i].transform(symm_op))
+                symm_eql_stresses.append(stresses[i].transform(symm_op))
+
+    # Fit the elastic constants
+    compliance_tensor = ElasticTensor.from_independent_strains(
+                        stresses=symm_eql_stresses,
+                        strains=symm_eql_strains,
+                        eq_stress=equilibrium_stress
+    )
+    compliance_tensor = -1.0 * compliance_tensor # pymatgen has opposite sign convention
+    return symm_eql_stresses, symm_eql_strains, compliance_tensor
+
 class ElasticWorkChain(WorkChain):
 
     @classmethod
@@ -49,6 +82,7 @@ class ElasticWorkChain(WorkChain):
 
         spec.input('structure', valid_type=StructureData)
         spec.input('symmetric_strains_only', valid_type=Bool, default=Bool(True))
+        spec.input('skip_input_relax', valid_type=Bool, default=Bool(False))
         spec.input('strain_magnitudes', valid_type=List,
                                         default=List(list=[-0.01,-0.005,0.005,0.01]))
         spec.expose_inputs(PwRelaxWorkChain, namespace='initial_relax',
@@ -57,8 +91,7 @@ class ElasticWorkChain(WorkChain):
                            exclude=('structure', 'clean_workdir'))
 
         spec.outline(
-           cls.get_conventional_structure,
-           cls.relax_conventional_structure,
+           cls.relax_input_structure,
            cls.get_relaxed_structure_stress,
            cls.get_deformed_structures,
            cls.compute_deformed_structures,
@@ -67,23 +100,14 @@ class ElasticWorkChain(WorkChain):
            cls.set_outputs
         )
 
-        spec.output('relaxed_conventional_structure', valid_type=StructureData)
+        spec.output('equilibrium_structure', valid_type=StructureData)
         spec.output('elastic_outputs', valid_type=ArrayData)
         spec.output('symmetry_mapping', valid_type=ParameterData)
 
         spec.exit_code(401, 'ERROR_SUB_PROCESS_FAILED_RELAX',
                        message='one of the PwRelaxWorkChain subprocesses failed')
     
-    def get_conventional_structure(self):
-        '''
-        Standardize the input structure and set the initial structure
-        '''
-        
-        structure = self.inputs.structure
-        conventional_structure = get_conventional_structure(structure)
-        self.ctx.conventional_structure = conventional_structure
-
-    def relax_conventional_structure(self):
+    def relax_input_structure(self):
         '''
         Run a relax/vc-relax calculation to find the ground state structure
 
@@ -91,7 +115,7 @@ class ElasticWorkChain(WorkChain):
         '''
         inputs = AttributeDict(self.exposed_inputs(PwRelaxWorkChain,
                                                    namespace='initial_relax'))
-        inputs.structure = self.ctx.conventional_structure
+        inputs.structure = self.inputs.structure
 
         future = self.submit(PwRelaxWorkChain, **inputs)
         self.report('Launching PwRelaxWorkChain<{}>'.format(future.pk))
@@ -115,9 +139,12 @@ class ElasticWorkChain(WorkChain):
             output_parameters_dict = outputs_dict[u'output_parameters'].get_dict()
             stress = np.array(output_parameters_dict['stress'])
 
-            self.ctx.ground_state_structure = workchain.out.output_structure
-            self.ctx.ground_state_stress = Stress(stress)
-        self.report('Finished getting relaxed structure stresses')
+            self.ctx.equilibrium_structure = workchain.out.output_structure
+            self.ctx.equilibrium_stress = Stress(stress)
+
+            ## Uncomment to control the input structure while debugging 
+            #self.report('WARNING: wrong eql structure!')
+            #self.ctx.equilibrium_structure = self.inputs.structure 
 
     def get_deformed_structures(self):
         """
@@ -125,28 +152,20 @@ class ElasticWorkChain(WorkChain):
         """
         self.report('Getting deformed structures')
         strain_magnitudes = self.inputs.strain_magnitudes
-        structure_mat = self.ctx.ground_state_structure.get_pymatgen_structure()
-        deformed_mat_set = DeformedStructureSet(structure_mat, 
-                                                norm_strains=strain_magnitudes, 
-                                                shear_strains=strain_magnitudes)
+        equilibrium_structure = self.ctx.equilibrium_structure.get_pymatgen_structure()
+        symmetric_strains_only = self.inputs.symmetric_strains_only 
 
-        self.ctx.symmetry_operations_dict = {}
-        self.ctx.deformations = deformed_mat_set.deformations
-        if self.inputs.symmetric_strains_only:
-            symmetry_operations_dict = symmetry_reduce(self.ctx.deformations,
-                                                                structure_mat)
-            self.ctx.deformations = [x for x in symmetry_operations_dict]
+        deformations, deformed_structures = _get_deformed_structures(equilibrium_structure,
+                                            strain_magnitudes, 
+                                            symmetric_strains_only=symmetric_strains_only)
+
+        strains = []
+        for i in range(len(deformations)):
+            strains.append(deformations[i].green_lagrange_strain)
         
-        self.ctx.deformed_structures = []
-        self.ctx.strains = []
-        for i in range(len(self.ctx.deformations)):
-            mg_deformed_structure = self.ctx.deformations[i].apply_to_structure(structure_mat)
-            deformed_structure = StructureData(pymatgen_structure=mg_deformed_structure)
-            self.ctx.deformed_structures.append(deformed_structure)
-            self.ctx.strains.append(self.ctx.deformations[i].green_lagrange_strain)
-        self.report('Finished getting deformed structures')
-
-
+        self.ctx.deformations = deformations
+        self.ctx.deformed_structures = deformed_structures
+        self.ctx.strains = strains
 
     def compute_deformed_structures(self):
         '''
@@ -194,34 +213,21 @@ class ElasticWorkChain(WorkChain):
         Fit the elastic tensor to the computed stresses & strains
         """
         self.report('Fitting elastic tensor')
-        symm_equivalent_strains = copy.deepcopy(self.ctx.strains)
-        symm_equivalent_stresses = copy.deepcopy(self.ctx.stresses)
+        stresses = self.ctx.stresses
+        strains = self.ctx.strains
+        strain_magnitudes = self.inputs.strain_magnitudes
+        equilibrium_structure = self.ctx.equilibrium_structure.get_pymatgen_structure()
+        equilibrium_stress = self.ctx.equilibrium_stress
+        symmetric_strains_only = self.inputs.symmetric_strains_only        
 
-        # Add in the symmetrically-equivalent stresses & strains for the fitting
-        for i in range(len(self.ctx.deformations)):
-            deformation = self.ctx.deformations[i]
-            symmetry_operations = []
-            if self.inputs.symmetric_strains_only:
-                structure_mat = self.ctx.ground_state_structure.get_pymatgen_structure()
-                symmetry_operations_dict = symmetry_reduce(self.ctx.deformations,
-                                                                structure_mat)
-                symmetry_operations = [x for x in symmetry_operations_dict[deformation]]
-            for symm_op in symmetry_operations:
-                symm_equivalent_strains.append(self.ctx.strains[i].transform(symm_op))
-                symm_equivalent_stresses.append(self.ctx.stresses[i].transform(symm_op))
-        
-        # Now fit the elastic constants
-        compliance_tensor = ElasticTensor.from_independent_strains(
-                            stresses=symm_equivalent_stresses,
-                            strains=symm_equivalent_strains,
-                            eq_stress=self.ctx.ground_state_stress
-        )
-        compliance_tensor = -1.0 * compliance_tensor # pymatgen has opposite sign convention
+        symm_eql_stresses, symm_eql_strains, compliance_tensor = _fit_elastic_tensor(
+            stresses, strains, strain_magnitudes,  equilibrium_structure, equilibrium_stress, 
+            symmetric_strains_only=symmetric_strains_only) 
 
-        self.ctx.symm_equivalent_strains = symm_equivalent_strains
-        self.ctx.symm_equivalent_stresses = symm_equivalent_stresses
+
+        self.ctx.symm_eql_strains = symm_eql_strains
+        self.ctx.symm_eql_stresses = symm_eql_stresses
         self.ctx.elastic_tensor = compliance_tensor.voigt
-
 
     def set_outputs(self):
         self.report('Setting Outputs')
@@ -233,9 +239,9 @@ class ElasticWorkChain(WorkChain):
                                     for k, v in symmopdict.iteritems()) 
             return aiida_symmopdict
 
-        structure_mat = self.ctx.ground_state_structure.get_pymatgen_structure()
+        equilibrium_structure = self.ctx.equilibrium_structure.get_pymatgen_structure()
         symmetry_operations_dict = symmetry_reduce(self.ctx.deformations,
-                                                        structure_mat)
+                                                        equilibrium_structure)
         symmetry_mapping = make_symmopdict_aiidafriendly(symmetry_operations_dict)
         symmetry_mapping = ParameterData(dict=symmetry_mapping)
 
@@ -243,12 +249,12 @@ class ElasticWorkChain(WorkChain):
         elastic_outputs.set_array('stresses', np.array(self.ctx.stresses))
         elastic_outputs.set_array('elastic_tensor',
                                  np.array(self.ctx.elastic_tensor))
-        elastic_outputs.set_array("symm_equivalent_strains",
-                                           np.array(self.ctx.symm_equivalent_strains))
-        elastic_outputs.set_array("symm_equivalent_stresses",
-                                           np.array(self.ctx.symm_equivalent_stresses))
+        elastic_outputs.set_array("symm_eql_strains",
+                                           np.array(self.ctx.symm_eql_strains))
+        elastic_outputs.set_array("symm_eql_stresses",
+                                           np.array(self.ctx.symm_eql_stresses))
 
-        self.out('ground_state_structure', self.ctx.ground_state_structure)
+        self.out('equilibrium_structure', self.ctx.equilibrium_structure)
         self.out('elastic_outputs', elastic_outputs)
         self.out('symmetry_mapping', symmetry_mapping)
 
