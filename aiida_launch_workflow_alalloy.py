@@ -206,6 +206,10 @@ def wf_delete_vccards(parameter):
               help='maximum wallclock time per job in seconds')
 @click.option('-mac', '--max_active_calculations', default=300,
               help='maximum number of active calculations')
+@click.option('-mns', '--max_nodes_submit', default=20,
+              help='maximum nodes that can be used in a submission')
+@click.option('-mas', '--max_atoms_submit', default=400,
+              help='maximum number atoms that can be used in a submission')
 @click.option('-nnd', '--number_of_nodes', default=None,
               help='Force all calculations to use the specified number of nodes')
 @click.option('-memgb', '--memory_gb', default=None,
@@ -235,6 +239,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
            base_parameter_node, pseudo_familyname, kptper_recipang,
            nume2bnd_ratio, press_conv_thr,
            calc_method, max_wallclock_seconds, max_active_calculations,
+           max_nodes_submit, max_atoms_submit,
            number_of_nodes, memory_gb, ndiag, npools,
            sleep_interval, z_movement_only, z_cellrelax_only,
            strain_magnitudes, use_all_strains,
@@ -273,6 +278,11 @@ def launch(code_node, structure_group_name, workchain_group_name,
     for structure in uncalculated_structures:
         print "Preparing to launch {}".format(structure)
         print "calcs to submit: {} max calcs:{}".format(calcs_to_submit, max_active_calculations)
+
+        if len(structure) > max_atoms_submit:
+            print "{} has more atoms than the max allowed {}".format(structure, max_atoms_submit)
+            print "If you wish to overide please use --max_atoms_submit"
+            continue
 
         # ensure no more than the max number of calcs are submitted
         while (calcs_to_submit <= 0):
@@ -315,9 +325,8 @@ def launch(code_node, structure_group_name, workchain_group_name,
             num_machines = int(number_of_nodes)
         else:
             num_machines = get_nummachines(structure, pseudo_familyname)
-            max_nodes_to_submit = 20
-            if num_machines > max_nodes_to_submit:
-                print "{} nodes requested, maximum is {}".format(num_machines, max_nodes_to_submit)
+            if num_machines > int(max_nodes_submit):
+                print "{} nodes requested, maximum is {}".format(num_machines, max_nodes_submit)
                 print "If you wish to launch please choose nodes manually with --number_of_nodes"
                 continue
         options_dict = {
