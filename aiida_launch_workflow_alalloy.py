@@ -207,6 +207,9 @@ def wf_delete_vccards(parameter):
               help='input group of structures to submit workchains on')
 @click.option('-wg', '--workchain_group_name', required=True,
               help='output group of workchains')
+@click.option('-sn', '--structure_node',
+              help='structure node to submit workchains on.'
+              'creates the provided structure group and adds the node')
 @click.option('-bp', '--base_parameter_node', required=True,
               help='node of base ParameterData to setup calculations')
 @click.option('-pfn', '--pseudo_familyname', required=True,
@@ -259,7 +262,8 @@ def wf_delete_vccards(parameter):
               help='run the script in debug mode. runs first calc then exitsj'
                    ' and does not attach the output to the workchain_group')
 def launch(code_node, structure_group_name, workchain_group_name,
-           base_parameter_node, pseudo_familyname, kptper_recipang,
+           structure_node, base_parameter_node,
+           pseudo_familyname, kptper_recipang,
            nume2bnd_ratio, press_conv_thr,
            calc_method, use_conventional_structure,
            max_wallclock_seconds, max_active_calculations,
@@ -271,23 +275,32 @@ def launch(code_node, structure_group_name, workchain_group_name,
     from aiida.orm.group import Group
     from aiida.orm.utils import load_node, WorkflowFactory
     from aiida.orm.data.base import Bool, Float, Int, Str, List
-    from aiida.orm.data.parameter import ParameterData
+    from aiida.orm.data.parameter import ParameterData 
+    from aiida.orm.data.structure import StructureData 
     from aiida.work.launch import submit, run
-
-    # setup parameters
-    code = load_node(code_node)
-    structure_group = Group.get_from_string(structure_group_name)
-    workchain_group = Group.get_or_create(name=workchain_group_name)[0]
-    base_parameter = load_node(base_parameter_node)
     # announce if running in debug mode
     if submit_debug:
         print "Running in debug mode!"
 
+    # setup parameters
+    code = load_node(code_node)
+    workchain_group = Group.get_or_create(name=workchain_group_name)[0]
+    base_parameter = load_node(base_parameter_node)
+
+    if structure_node:
+        structure_group = Group.get_or_create(name=structure_group_name)[0]
+        input_structure = load_node(structure_node)
+        if not isinstance(input_structure, StructureData):
+            raise Exception("structure node was not a StructureData")
+        structure_group.add_nodes([input_structure])
+
     # Load all the structures in the structure group, not-yet run in workchain_group_name
+    structure_group = Group.get_from_string(structure_group_name)
     uncalculated_structures = retrieve_alluncalculated_structures(
                                 structure_group_name,
                                 workchain_group_name=workchain_group_name
     )
+
     if len(uncalculated_structures) == 0:
         print("All structures in {} already have associated workchains in "
               "the group {}".format(structure_group_name, workchain_group_name))
