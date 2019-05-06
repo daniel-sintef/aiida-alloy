@@ -412,15 +412,15 @@ def launch(code_node, structure_group_name, workchain_group_name,
                 'options': workchain_options,
                 'settings': settings,
                 }
+        # For elastic workflows need to jump through hoops to get rid of CELL param
         relax_inputs = {
-            'base': base_inputs,
+            'base': {k: base_inputs[k]  for k in base_inputs if k != 'parameters'},
             'relaxation_scheme': Str('relax'),
             'final_scf' : Bool(False),
             'meta_convergence' : Bool(False)
         }
-        relax_base_param = wf_delete_vccards(relax_inputs['base']['parameters'])
-        relax_inputs['base']['parameters'] = relax_base_param
-
+        relax_parameters = wf_delete_vccards(parameters)
+        relax_inputs['base']['parameters'] = relax_parameters
         vcrelax_inputs = {
             'base': base_inputs,
             'relaxation_scheme': Str('vc-relax'),
@@ -455,12 +455,15 @@ def launch(code_node, structure_group_name, workchain_group_name,
             time_elapsed = end - start
             print "timing: {}s".format(time_elapsed)
 
+        calcs_to_submit -= 1
         if dryrun:
             print "ase_structure: {}".format(structure.get_ase())
             print "aiida_settings: {}".format(settings.get_dict())
+            print "aiida_parameters: {}".format(inputs['base']['parameters'].get_dict())
             print "aiida_options: {}".format(workchain_options.get_dict())
             print "aiida_inputs: {}".format(inputs)
             print_timing(start)
+            continue
         elif run_debug:
             run(WorkChain, **inputs)
             sys.exit()
@@ -473,7 +476,6 @@ def launch(code_node, structure_group_name, workchain_group_name,
             sys.exit()
 
         workchain_group.add_nodes([node])
-        calcs_to_submit -= 1
 
 
 
