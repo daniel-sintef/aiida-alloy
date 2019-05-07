@@ -176,37 +176,38 @@ class ElasticWorkChain(WorkChain):
         self.report('Computing deformed structures')
         deformed_structures = self.ctx.deformed_structures
 
-        for deformed_structure in deformed_structures:
+        for key_index in range(len(deformed_structures)):
             inputs = AttributeDict(self.exposed_inputs(PwRelaxWorkChain,
                                                        namespace='elastic_relax'))
-            inputs.structure = deformed_structure
+            inputs.structure = deformed_structures[key_index]
 
             future = self.submit(PwRelaxWorkChain, **inputs)
+
+            deformation_key = 'deformation_{}'.format(key_index)
             self.report('launching PwRelaxWorkChain<{}>'.format(future.pk))
-            self.to_context(deformed_workchains=append_(future))
+            self.to_context(**{deformation_key: future})
 
     def gather_computed_stresses(self):
         '''
         Retrieve final stress from the defomed structure relax workflows
         '''
         self.report('Gathering computed stresses')
-        deformed_workchains = self.ctx.deformed_workchains
+        deformed_structures = self.ctx.deformed_structures
 
         computed_stresses = []
-        for workchain in deformed_workchains:
+        for key_index in range(len(deformed_structures)):
+            deformation_key = 'deformation_{}'.format(key_index)
+            deformation_key = 'deformation_{}'.format(key_index)
+            workchain = self.ctx[deformation_key]
             if not workchain.is_finished_ok:
                 self.report('PwRelaxWorkChain failed with exit status {}'
                             .format(workchain.exit_status))
                 return self.exit_codes.ERROR_SUB_PROCESS_FAILED_RELAX
             else:
                 computed_stress = get_qerelax_stress(workchain)
-                computed_stresses.append(computed_stress)
+                computed_stresses.append(Stress(computed_stress))
         
-        pymatgen_stresses = []
-        for computed_stress in computed_stresses:
-            pymatgen_stresses.append(Stress(computed_stress))
-        
-        self.ctx.stresses = pymatgen_stresses 
+        self.ctx.stresses = computed_stresses 
     
     def fit_elastic_tensor(self):
         """
