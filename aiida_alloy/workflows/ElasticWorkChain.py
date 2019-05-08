@@ -181,17 +181,6 @@ class ElasticWorkChain(WorkChain):
                                                        namespace='elastic_relax'))
             inputs.structure = deformed_structures[key_index]
 
-            #artificial kpoint grid to test response time
-            from aiida.orm.data.array.kpoints import KpointsData
-            kpoints_mesh = [4,4,4]
-            if key_index > len(deformed_structures)/2:
-                kpoints_mesh = [2,2,2]
-            kpoints = KpointsData(kpoints_mesh=kpoints_mesh)
-            inputs['base'] = AttributeDict(inputs['base'])
-            self.report('inputs: {}'.format(inputs))
-            inputs['base']['kpoints'] = kpoints
-            self.report('kpoints: {}'.format(inputs.base.kpoints.get_kpoints_mesh()))
-            ##############################################
 
             future = self.submit(PwRelaxWorkChain, **inputs)
 
