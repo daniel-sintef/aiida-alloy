@@ -85,6 +85,7 @@ class ElasticWorkChain(WorkChain):
         spec.input('skip_input_relax', valid_type=Bool, default=Bool(False))
         spec.input('strain_magnitudes', valid_type=List,
                                         default=List(list=[-0.01,-0.005,0.005,0.01]))
+        spec.input('clean_workdir', valid_type=Bool, default=Bool(True))
         spec.expose_inputs(PwRelaxWorkChain, namespace='initial_relax',
                            exclude=('structure', 'clean_workdir')) 
         spec.expose_inputs(PwRelaxWorkChain, namespace='elastic_relax',
@@ -116,6 +117,7 @@ class ElasticWorkChain(WorkChain):
         inputs = AttributeDict(self.exposed_inputs(PwRelaxWorkChain,
                                                    namespace='initial_relax'))
         inputs.structure = self.inputs.structure
+        inputs.clean_workdir = self.inputs.clean_workdir
 
         future = self.submit(PwRelaxWorkChain, **inputs)
         self.report('Launching PwRelaxWorkChain<{}>'.format(future.pk))
@@ -180,6 +182,7 @@ class ElasticWorkChain(WorkChain):
             inputs = AttributeDict(self.exposed_inputs(PwRelaxWorkChain,
                                                        namespace='elastic_relax'))
             inputs.structure = deformed_structures[key_index]
+            inputs.clean_workdir = self.inputs.clean_workdir
 
 
             future = self.submit(PwRelaxWorkChain, **inputs)
