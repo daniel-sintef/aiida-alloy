@@ -38,12 +38,23 @@ def retrieve_alluncalculated_structures(structure_group_name,
     return res
 
 def retrieve_numactive_calculations():
-    from aiida.orm.calculation import JobCalculation
     from aiida.orm.querybuilder import QueryBuilder
+    from aiida.orm import WorkCalculation
     qb = QueryBuilder()
-    qb.append(JobCalculation,
+    qb.append(WorkCalculation,
               filters={'attributes.process_state':
                        {'!in': ['finished', 'excepted', 'killed']}}
+    )
+    return len(qb.all())
+
+def retrieve_numactive_elastic():
+    from aiida.orm.querybuilder import QueryBuilder
+    from aiida.orm import WorkCalculation
+    qb = QueryBuilder()
+    qb.append(WorkCalculation,
+              filters={'attributes.process_state':
+                       {'!in': ['finished', 'excepted', 'killed']},
+                       'attributes._process_label':'ElasticWorkChain'}
     )
     return len(qb.all())
 
@@ -229,6 +240,8 @@ def wf_delete_vccards(parameter):
               help='maximum wallclock time per job in seconds')
 @click.option('-mac', '--max_active_calculations', default=300,
               help='maximum number of active calculations')
+@click.option('-mae', '--max_active_elastic', default=5,
+              help='maximum number of active elastic workchains')
 @click.option('-mns', '--max_nodes_submit', default=20,
               help='maximum nodes that can be used in a submission')
 @click.option('-mas', '--max_atoms_submit', default=400,
@@ -266,7 +279,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
            pseudo_familyname, kptper_recipang,
            nume2bnd_ratio, press_conv_thr,
            calc_method, use_conventional_structure,
-           max_wallclock_seconds, max_active_calculations,
+           max_wallclock_seconds, max_active_calculations, max_active_elastic,
            max_nodes_submit, max_atoms_submit,
            number_of_nodes, memory_gb, ndiag, npools,
            sleep_interval, z_movement_only, z_cellrelax_only,
@@ -309,6 +322,9 @@ def launch(code_node, structure_group_name, workchain_group_name,
     # determine number of calculations to submit
     running_calculations = retrieve_numactive_calculations()
     calcs_to_submit = max_active_calculations - running_calculations
+    if calc_method == 'elastic':
+        running_elastic = retrieve_numactive_elastic()
+        calcs_to_submit = max_active_elastic - running_elastic
 
 
     # submit calculations
@@ -327,10 +343,18 @@ def launch(code_node, structure_group_name, workchain_group_name,
         while (calcs_to_submit <= 0):
             running_calculations = retrieve_numactive_calculations()
             calcs_to_submit = max_active_calculations - running_calculations
+            if calc_method == 'elastic':
+                running_elastic = retrieve_numactive_elastic()
+                calcs_to_submit = max_active_elastic - running_elastic
             if calcs_to_submit <= 0:  # in case jobs finished during submission
-                print("{} calcs running,"
-                      "max num calcs {} waiting....".format(
-                          running_calculations, max_active_calculations))
+                if calc_method == 'elastic':
+                    print("{} elastic running,"
+                          "max num elastic {} waiting....".format(
+                              running_elastic, max_active_elastic))
+                else:
+                    print("{} calcs running,"
+                          "max num calcs {} waiting....".format(
+                              running_calculations, max_active_calculations))
                 time.sleep(sleep_interval)
 
         # start timer to inspect job submission times
@@ -443,8 +467,8 @@ def launch(code_node, structure_group_name, workchain_group_name,
             inputs['initial_relax'] = vcrelax_inputs
             inputs['elastic_relax'] = relax_inputs
             if strain_magnitudes:
-                strain_magnitudes = [float(x) for x in strain_magnitudes.split(',')]
-                inputs['strain_magnitudes'] = List(list=strain_magnitudes)
+                strain_magnitudes_list = [float(x) for x in strain_magnitudes.split(',')]
+                inputs['strain_magnitudes'] = List(list=strain_magnitudes_list)
             if use_all_strains:
                 inputs['symmetric_strains_only'] = Bool(False)
         else:
