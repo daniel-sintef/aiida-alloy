@@ -75,6 +75,8 @@ def get_layer_frame(structure, miller_index):
               " E.g. if Mg-Si solute solutes have been generated the script will skip Si-Mg")
 @click.option('-msl', '--maxsolute_layer', default=None,
               help="Maximum layer to place solutes away from the SF")
+@click.option('-tsl', '--testsolute_layer', is_flag=True,
+              help="Place solute at the midpoint (test) of the SF")
 @click.option('-sg', '--structure_group_name', required=True,
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
@@ -84,7 +86,7 @@ def get_layer_frame(structure, miller_index):
 def launch(lattice_size, matrix_element, lattice_and_surface,
            periodic_xrepeats, periodic_yrepeats, periodic_zrepeats,
            displacement_x, displacement_y, special_pointsonly,
-           primitive, solute_elements, maxsolute_layer,
+           primitive, solute_elements, maxsolute_layer, testsolute_layer,
            structure_group_name, structure_group_description,
            dryrun):
     """
@@ -181,7 +183,10 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
         extras['sol1_element'] = solute_element
         layer_frame = get_layer_frame(distorted_structure, (0,0,1))
         layer_frame = layer_frame.drop_duplicates("layer_index").reset_index()
-        for i in range(len(layer_frame)/2):
+        solute_layers = range(int(len(layer_frame)/2))
+        if testsolute_layer:
+            solute_layers = [int(len(layer_frame)/2)-1]
+        for i in solute_layers:
             solute_structure = distorted_structure.copy()
             solute_index = int(layer_frame.loc[i]['structure_index'])
             solute_structure[solute_index].symbol = solute_element
