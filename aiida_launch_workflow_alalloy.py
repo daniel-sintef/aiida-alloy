@@ -388,6 +388,8 @@ def launch(code_node, structure_group_name, workchain_group_name,
             num_machines = int(number_of_nodes)
         else:
             num_machines = get_nummachines(structure, pseudo_familyname)
+            if calc_method in ['vc-relax']:
+               num_machines += 4
             if num_machines > int(max_nodes_submit):
                 print "{} nodes requested, maximum is {}".format(num_machines, max_nodes_submit)
                 print "If you wish to launch please choose nodes manually with --number_of_nodes"
@@ -483,7 +485,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
         if dryrun:
             print "ase_structure: {}".format(structure.get_ase())
             print "aiida_settings: {}".format(settings.get_dict())
-            print "aiida_parameters: {}".format(inputs['base']['parameters'].get_dict())
+            #print "aiida_parameters: {}".format(inputs['base']['parameters'].get_dict())
             print "aiida_options: {}".format(workchain_options.get_dict())
             print "aiida_inputs: {}".format(inputs)
             print_timing(start)
