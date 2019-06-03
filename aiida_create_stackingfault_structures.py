@@ -76,7 +76,9 @@ def get_layer_frame(structure, miller_index):
 @click.option('-msl', '--maxsolute_layer', default=None,
               help="Maximum layer to place solutes away from the SF")
 @click.option('-tsl', '--testsolute_layer', is_flag=True,
-              help="Place solute at the midpoint (test) of the SF")
+              help="Place one solute at the midpoint (test) of the SF")
+@click.option('-rsl', '--refsolute', is_flag=True,
+              help="Place one solute at the origin of an undistorted slab with size of a SF")
 @click.option('-sg', '--structure_group_name', required=True,
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
@@ -87,7 +89,7 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
            periodic_xrepeats, periodic_yrepeats, periodic_zrepeats,
            displacement_x, displacement_y, special_pointsonly,
            primitive, solute_elements, maxsolute_layer, testsolute_layer,
-           structure_group_name, structure_group_description,
+           refsolute, structure_group_name, structure_group_description,
            dryrun):
     """
     Script for creating stacking fault structures for a given size and matrix element. Generates
@@ -163,9 +165,13 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
         if STABLE_STACKING_NAME not in special_points:
             raise Exception("{} has no stable_stacking structure defined "
                             "".format(lattice_and_surface))
-        d_x, d_y = special_points[STABLE_STACKING_NAME]
+        if refsolute:
+            d_x, d_y = special_points['undistorted']
+            special_pointnames.append('undistorted')
+        else:
+            d_x, d_y = special_points[STABLE_STACKING_NAME]
+            special_pointnames.append(STABLE_STACKING_NAME)
         displacements.append([d_x, d_y])
-        special_pointnames.append(STABLE_STACKING_NAME)
 
     for displacement in displacements:
         d_x, d_y = displacement
@@ -184,6 +190,8 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
         layer_frame = get_layer_frame(distorted_structure, (0,0,1))
         layer_frame = layer_frame.drop_duplicates("layer_index").reset_index()
         solute_layers = range(int(len(layer_frame)/2))
+        if refsolute:
+            solute_layers = [0]
         if testsolute_layer:
             solute_layers = [int(len(layer_frame)/2)-1]
         for i in solute_layers:
