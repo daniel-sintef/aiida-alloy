@@ -9,17 +9,6 @@ import json
 import os
 from aiida_create_solutesupercell_structures import *
 
-def add_parentstructure_extras(structurenode, parent_uuid):
-    # NOTE: consider adding a check if parent_extras is already assigned
-    structure_extras = structurenode.get_extras()
-    parent_extras = load_node(parent_uuid).get_extras()
-    for key, value in parent_extras.items():
-        if key not in structure_extras:
-            structurenode.set_extra(key, value)
-    structurenode.set_extra('parent_extras', True)
-    return
-
-
 @click.command()
 @click.option('-od', '--oqmd_dumpdir', required=True,
                help="path to a directory containing a dump of OQMD entries")
