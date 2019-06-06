@@ -158,6 +158,7 @@ def store_asestructure(ase_structure, extras, structure_group, dryrun):
         aiida_structure_stored.set_extra("chem_formula", ase_structure.get_chemical_formula())
 
         structure_group.add_nodes(aiida_structure_stored)
+        print("{} stored".format(aiida_structure_stored))
 
     return
 
