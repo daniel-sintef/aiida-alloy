@@ -2,6 +2,7 @@
 import aiida
 aiida.try_load_dbenv()
 from aiida.orm.group import Group
+from aiida.orm import load_node
 from aiida_create_solutesupercell_structures import *
 import ase
 import ase.build
@@ -36,14 +37,18 @@ def get_layer_frame(structure, miller_index):
 
 
 @click.command()
-@click.option('-a', '--lattice_size', required=True,
+@click.option('-a', '--lattice_size', required=False,
               help="lattice length (in Ang) to use")
-@click.option('-me', '--matrix_element', required=True,
+@click.option('-me', '--matrix_element', required=False,
               help="element to be used as the matrix")
 @click.option('-l_surf', '--lattice_and_surface',
               type=click.Choice(["FCC_111"]),
               help="lattice and surface to be used. "
-              "FCC_111: <112>(x) <110>(y) <111>(z)", required=True)
+              "FCC_111: <112>(x) <110>(y) <111>(z)", required=False)
+@click.option('-cstr', '--custom_structure',
+              help="Node containing a custom structure. "
+              "Must have x_direction, y_direction and surface_plane specified in the extras",
+              required=False)
 @click.option('-pxr', '--periodic_xrepeats', default=1, type=int,
               help="periodic repeats in the x (a1) direction")
 @click.option('-pyr', '--periodic_yrepeats', default=1, type=int,
@@ -86,6 +91,7 @@ def get_layer_frame(structure, miller_index):
 @click.option('-dr', '--dryrun', is_flag=True,
               help="Prints structures and extras but does not store anything")
 def launch(lattice_size, matrix_element, lattice_and_surface,
+           custom_structure,
            periodic_xrepeats, periodic_yrepeats, periodic_zrepeats,
            displacement_x, displacement_y, special_pointsonly,
            primitive, solute_elements, maxsolute_layer, testsolute_layer,
@@ -103,20 +109,27 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
     else:
         structure_group = None
 
-    lattice_size = float(lattice_size)
-    lattice_type, surface_plane = lattice_and_surface.split('_')
-    surface_plane = "{"+str(surface_plane)+"}"
-    orthogonal = not primitive
 
-    extras = {
-        'lattice_size':lattice_size,
-        'lattice_type':lattice_type,
-        'surface_plane':surface_plane,
-        'matrix_element':matrix_element,
-        'periodic_xrepeats': periodic_xrepeats,
-        'periodic_yrepeats': periodic_yrepeats,
-        'periodic_zrepeats': periodic_zrepeats
-                  }
+
+    extras = {}
+    if lattice_and_surface:
+        if lattice_size is None:
+           raise Exception("Must specifiy a lattice_size if using lattice_and_surface")
+        if matrix_element is None:
+           raise Exception("Must specifiy a matrix_element if using lattice_and_surface")
+        lattice_size = float(lattice_size)
+        lattice_type, surface_plane = lattice_and_surface.split('_')
+        surface_plane = "{"+str(surface_plane)+"}"
+        orthogonal = not primitive
+        extras = {
+            'lattice_size':lattice_size,
+            'lattice_type':lattice_type,
+            'surface_plane':surface_plane,
+            'matrix_element':matrix_element,
+                      }
+    extras['periodic_xrepeats'] = periodic_xrepeats
+    extras['periodic_yrepeats'] = periodic_yrepeats
+    extras['periodic_zrepeats'] = periodic_zrepeats
 
     special_points = {'undistorted':[0,0]}
     if lattice_and_surface == "FCC_111":
@@ -140,6 +153,24 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
                                           [xrepeats,yrepeats,zrepeats],
                                           orthogonal=orthogonal,
                                           a=lattice_size)
+    elif custom_structure:
+        custom_structure = load_node(custom_structure)
+        undistorted_structure = custom_structure.get_ase()
+        extras = custom_structure.get_extras()
+        if '_aiida_hash' in extras:
+            del extras['_aiida_hash']
+        #Check that x_direciton &  y_direction are already specified
+        if 'label' not in extras:
+            raise Exception("label not found in {} extras".format(custom_structure))
+        if 'x_direction' not in extras:
+            raise Exception("x_direction not found in {} extras".format(custom_structure))
+        if 'y_direction' not in extras:
+            raise Exception("y_direction not found in {} extras".format(custom_structure))
+        if 'surface_plane' not in extras:
+            raise Exception("surface_plane not found in {} extras".format(custom_structure))
+        undistorted_structure =  undistorted_structure.repeat(
+                                   [periodic_xrepeats, periodic_yrepeats, periodic_zrepeats]
+                                                             )
     else:
        raise Exception("Could not process lattice_and_surface: {}".format(lattice_and_surface))
 
