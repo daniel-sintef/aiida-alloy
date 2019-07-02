@@ -2,6 +2,7 @@
 from __future__ import print_function
 import aiida
 aiida.try_load_dbenv()
+from aiida.common import constants
 from aiida.orm import Node
 from aiida.orm.querybuilder import QueryBuilder
 from aiida.orm import Calculation, Group, WorkCalculation
@@ -9,7 +10,6 @@ from aiida.orm.data.structure import StructureData
 from aiida.orm.data.array.trajectory import TrajectoryData
 from aiida.orm.utils import load_node, WorkflowFactory
 import click
-from ase import units
 from ase import Atoms
 from ase.io import write as ase_write
 import aiida_utils
@@ -18,9 +18,9 @@ import os
 import numpy as np
 
 #Define unit conversions
-ANGSTROM_TO_BOHRRADIUS = 1./units.Bohr
-EV_PER_ANGSTROM_TO_HARTREE_PER_BOHRRADIUS = units.Bohr/units.Hartree
-EV_TO_HARTREE = 1/units.Hartree
+ANGSTROM_TO_BOHRRADIUS = 1./constants.bohr_to_ang
+EV_PER_ANGSTROM_TO_HARTREE_PER_BOHRRADIUS = constants.bohr_to_ang/constants.hartree_to_ev
+EV_TO_HARTREE = 1/constants.hartree_to_ev
 
 def get_allnodes_fromgroup(group_name):
     qb = QueryBuilder()
