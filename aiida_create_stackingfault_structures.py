@@ -127,10 +127,6 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
             'surface_plane':surface_plane,
             'matrix_element':matrix_element,
                       }
-    extras['periodic_xrepeats'] = periodic_xrepeats
-    extras['periodic_yrepeats'] = periodic_yrepeats
-    extras['periodic_zrepeats'] = periodic_zrepeats
-
     special_points = {'undistorted':[0,0]}
     if lattice_and_surface == "FCC_111":
        xrepeats = periodic_xrepeats
@@ -173,6 +169,13 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
                                                              )
     else:
        raise Exception("Could not process lattice_and_surface: {}".format(lattice_and_surface))
+
+
+    #Add extras common to specified & custom lattice
+    extras['periodic_xrepeats'] = periodic_xrepeats
+    extras['periodic_yrepeats'] = periodic_yrepeats
+    extras['periodic_zrepeats'] = periodic_zrepeats
+
 
     undistorted_structure.pbc = [True, True, True] # DFT structures always periodic
     a1 = undistorted_structure.get_cell()[0]/float(periodic_xrepeats)
