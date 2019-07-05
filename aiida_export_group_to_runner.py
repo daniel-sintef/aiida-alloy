@@ -3,6 +3,7 @@ from __future__ import print_function
 import aiida
 aiida.try_load_dbenv()
 from aiida.common import constants
+from aiida_create_solutesupercell_structures import *
 from aiida.orm import Node
 from aiida.orm.querybuilder import QueryBuilder
 from aiida.orm import Calculation, Group, WorkCalculation
@@ -28,6 +29,15 @@ def get_allnodes_fromgroup(group_name):
     qb.append(Node, tag='job', member_of='g')
     all_nodes = [x[0] for x in qb.all()]
     return all_nodes
+
+def get_outputcalcs(node):
+    q = QueryBuilder()
+    q.append(WorkCalculation, filters={"uuid": node.uuid}, tag="worknode")
+    q.append(WorkCalculation, tag="worknode2", output_of="worknode", project=["id", "ctime",  "*"])
+    q.order_by({"worknode2": "ctime"})
+    child_nodes = [x[2] for x in q.all()]
+    return child_nodes
+
 
 def write_runner_commentline(fileout, uuid, extra_comments={}):
     fileout.write("begin\ncomment ")
@@ -117,6 +127,11 @@ def write_pwbase_torunner(fileout, pwbasenode, extra_comments={}):
     elements = ase_structure.get_chemical_symbols()
 
     atomicforce_array = scf_node.out.output_array.get_array('forces')[-1]
+    try:
+        atomicforce_array = scf_node.out.output_array.get_array('forces')[-1]
+    except KeyError:
+        print('Error obtaining forces for: {} skipping..'.format(pwbasenode))
+        return
     energy = scf_node.out.output_parameters.get_attr('energy')
 
     write_runner_commentline(fileout, pwbasenode.uuid, extra_comments=extra_comments)
@@ -125,63 +140,98 @@ def write_pwbase_torunner(fileout, pwbasenode, extra_comments={}):
     write_runner_finalline(fileout, energy=energy)
     return
 
-def get_timesorted_trajectories(relaxworkcalc):
+def get_relaxnode_calcoutputs(node):
+    from aiida_quantumespresso.calculations.pw import PwCalculation
     q = QueryBuilder()
-    q.append(WorkCalculation, filters={"uuid": relaxworkcalc.uuid}, tag="relaxworkcalc")
-    q.append(WorkCalculation, tag="baseworkcalc", output_of="relaxworkcalc")
-    q.append(Calculation, output_of="baseworkcalc", tag="calc")
-    q.append(TrajectoryData, output_of="calc", project=["id", "ctime",  "*"], tag="traj")
-    q.order_by({"traj": "ctime"})
-    timesorted_trajectories = [x[2] for x in q.all()]
-    return timesorted_trajectories
+    q.append(WorkCalculation, filters={"uuid": node.uuid}, tag="worknode")
+    q.append(WorkCalculation, tag="worknode2", output_of="worknode")
+    q.append(PwCalculation, tag="pwcalc", output_of="worknode2", project=["id", "ctime",  "*"])
+    q.order_by({"pwcalc": "ctime"})
+    child_nodes = [x[2] for x in q.all()]
+    return child_nodes
 
-def get_arraysbyname_fromtrajectories(timesorted_trajectories, arrayname):
-    timesorted_arrays = [x.get_array(arrayname) for x in timesorted_trajectories]
-    return np.concatenate(timesorted_arrays)
+def get_timesorted_values(relax_node, arrayname, np_concatenate=True,
+                          check_outputparams=False):
+    # check_outputparams because some values are not added to trajectory if numsteps =1 (e.g energy)
+    child_nodes = get_relaxnode_calcoutputs(relax_node)
+    output_array = []
+    num_steps = 0
+    addextra_vcinfo = False # some vc-relax calcs omit final data in the trajectory
+    for node in child_nodes:
+        # vc-relax calcuations require some double-counting
+        if node.inp.parameters.get_dict()['CONTROL']['calculation'] == 'vc-relax':
+            addextra_vcinfo = True
+        parser_warning = bool(node.out.output_parameters.get_dict()['parser_warnings'])
+        if parser_warning != 0:
+            print("Skipping failed child {} of {}".format(node, relax_node))
+            continue
+        try:
+            num_steps = len(node.out.output_trajectory.get_array('forces'))
+        except AttributeError:
+            print("No trjactories in child {} of {}".format(node, relax_node))
+            continue
+        if num_steps == 1 and check_outputparams:
+            output_array.append([node.out.output_parameters.get_dict()[arrayname]])
+        else:
+            output_array.append(node.out.output_trajectory.get_array(arrayname))
+
+    # vc-relax nodes are really fussy when it comes to appending to trajectory data
+    if relax_node.exit_status != 0:
+       addextra_vcinfo = False
+    if num_steps == 1:
+       addextra_vcinfo = False
+    if addextra_vcinfo and arrayname in ['steps', 'cells', 'positions']:
+        output_array.append([output_array[-1][-1]])
+
+    if np_concatenate:
+        try:
+            output_array = np.concatenate(output_array)
+        except ValueError:
+            return []
+    return output_array
 
 def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed, verbose, extra_comments={}):
-    trajectories = get_timesorted_trajectories(relax_node)
+    timesorted_steps = get_timesorted_values(relax_node, 'steps')
+    num_steps = len(timesorted_steps)
+    if num_steps == 0:
+        print("WARNING: {} is empty, skipping!".format(relax_node))
+        return
+    timesorted_cells = get_timesorted_values(relax_node, 'cells')
+    timesorted_positions = get_timesorted_values(relax_node, 'positions')
+    timesorted_energy = get_timesorted_values(relax_node, 'energy', check_outputparams=True)
+    timesorted_forces = get_timesorted_values(relax_node, 'forces')
+    timesorted_elements = get_timesorted_values(relax_node, 'symbols', np_concatenate=False)
+    elements = timesorted_elements[0] #assume unchanging element positions
 
-    timesorted_cells = get_arraysbyname_fromtrajectories(trajectories, 'cells')
-    timesorted_positions = get_arraysbyname_fromtrajectories(trajectories, 'positions')
-    timesorted_forces = get_arraysbyname_fromtrajectories(trajectories, 'forces')
-    if len(timesorted_forces) == 1:
-        energy = relax_node.out.CALL.out.CALL.out.output_parameters.get_attr('energy')
-        timesorted_energy = [energy]
-    else:
-        timesorted_energy = get_arraysbyname_fromtrajectories(trajectories, 'energy')
-    elements = trajectories[0].get_array('symbols') # assume unchangin
+    #Sometimes the final forces are not parsed. Trim out the last energy in that case
+    if relax_node.exit_status == 401:
+        timesorted_energy = timesorted_energy[0:len(timesorted_forces)]
+
+    if len(timesorted_cells) != num_steps:
+       raise Exception("Cells does not have the proper number of steps!")
+    if len(timesorted_positions) != num_steps:
+       raise Exception("Positions does not have the proper number of steps!")
+    if len(timesorted_energy) != num_steps:
+       print(timesorted_forces, timesorted_energy, timesorted_steps)
+       print(len(timesorted_energy), len(timesorted_steps), len(timesorted_forces))
+       raise Exception("Energies does not have the proper number of steps!")
+    if len(timesorted_forces) != num_steps:
+       raise Exception("Forces does not have the proper number of steps!")
 
     extra_comments={"trajectory_step":None}
-    print('relaxation steps:',len(timesorted_cells))
+
+    if verbose:
+       print('relaxation steps:',len(timesorted_steps))
 
     if write_only_relaxed == False:
         for i in range(len(timesorted_cells)):
             extra_comments["trajectory_step"] = i
-            if verbose:
-                a = timesorted_cells[i][0]
-                b = timesorted_cells[i][1]
-                c = timesorted_cells[i][2]
-                vol=np.dot(a,np.cross(b,c))
-                maxforce = np.abs(timesorted_forces[i]).max()
-                print('extra',str(extra_comments).ljust(25," "),
-                      "volume",vol,
-                      "energy",str(timesorted_energy[i]).ljust(20),
-                      "maxforce",maxforce)
-            ###################################################################
-            # at some point we'll need to update the runner write_runner part
-            # since it can not be read by n2p2 in the current form (also it looks ok)
-            # the ase_write("outt.runner",frame,format='runner',append=True)
-            # works but not in my currently installed aiida version
-            ###################################################################
-            #frame = Atoms(elements, positions=timesorted_positions[i])
-            #frame.set_cell(timesorted_cells[i])
-            #ka = extra_comments["trajectory_step"]
-            #ase_write("outt.runner",frame,format='runner',append=True) #,comment=str(relax_node.uuid+" trajectory_step "+str(ka)+"\n")) #+" "+extra_comments)
             write_runner_commentline(fileout, relax_node.uuid, extra_comments=extra_comments)
             write_runner_cell(fileout, timesorted_cells[i])
             write_runner_atomlines(fileout,
-               timesorted_positions[i], elements, atomicforce_array=timesorted_forces[i])
+               timesorted_positions[i],
+               elements,
+               atomicforce_array=timesorted_forces[i])
             write_runner_finalline(fileout, energy=timesorted_energy[i])
 
     if bool(relax_node.inp.final_scf):
@@ -215,15 +265,20 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
          help="supresses the generation of a readme file")
 @click.option('-v', '--verbose', is_flag=True,
          type=str, help="Enables verbosity")
+@click.option('-oe', '--output_elements', required=False,
+              help="only output structures containing these elements")
 
 
-def createjob(group_name, filename, write_only_relaxed, supress_readme, verbose):
+def createjob(group_name, filename, write_only_relaxed, supress_readme, verbose, output_elements):
     ''' e.g.
     ./aiida_export_group_to_runner.py -gn Al6xxxDB_structuregroup
     '''
     all_nodes = get_allnodes_fromgroup(group_name)
     if not supress_readme:
         aiida_utils.create_READMEtxt()
+
+    if output_elements:
+        output_elements = prep_elementlist(output_elements)
 
     add_to_filename = "__all_steps"
     if write_only_relaxed == True:
@@ -241,8 +296,22 @@ def createjob(group_name, filename, write_only_relaxed, supress_readme, verbose)
         print('structure_group:', group_name)
 
     for node in all_nodes:
+        exit_status = node.exit_status
+        if int(exit_status) in [401]:
+            print("WARNING {} had a non-critical non-zero exit!".format(node, exit_status))
+        if int(exit_status) in [104]:
+            print("WARNING {} had a critical non-zero exit, skipping!".format(node, exit_status))
+            continue
+
         if verbose:
             print("Writing node: {}".format(node.uuid))
+        if output_elements:
+            input_ase = node.inp.structure.get_ase()
+            only_output_elements = all([x in output_elements
+                                        for x in input_ase.get_chemical_symbols()])
+            if not only_output_elements:
+                print("Skipping: {}/{}".format(input_ase, node))
+                continue
 
         if isinstance(node, StructureData):
             print('using write_structure_torunner')
@@ -255,6 +324,10 @@ def createjob(group_name, filename, write_only_relaxed, supress_readme, verbose)
             elif process_label == "PwRelaxWorkChain":
                 print('using write_pwrelax_torunner')
                 write_pwrelax_torunner(fileout, node, write_only_relaxed,verbose)
+            elif process_label == "ElasticWorkChain":
+                print("recursively adding Elastic nodes")
+                elastic_children = get_outputcalcs(node)
+                all_nodes += elastic_children
             else:
                 print("Could not identify node, skipping")
         else:
