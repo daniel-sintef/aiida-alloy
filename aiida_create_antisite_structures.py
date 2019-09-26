@@ -120,7 +120,6 @@ def launch(input_group, input_structures,
                                     input_structure_ase, target_supercellsize
                                     )[1]
         for unique_site in unique_sites:
-            defect_structure = input_structure_ase.copy()
 
             site_index, element_index, wyckoff = unique_site
             extras['site_index'] = site_index
@@ -128,13 +127,14 @@ def launch(input_group, input_structures,
             extras['wyckoff'] = wyckoff 
 
             for element in solute_elements:
+                defect_structure = input_structure_ase.copy()
                 extras['element_new'] = element
                 if defect_structure[site_index].symbol == element:
                     continue
                 else:
                    defect_structure[site_index].symbol = element
-                store_asestructure(defect_structure, extras,
-                                   structure_group, dryrun)
+                   store_asestructure(defect_structure, extras,
+                                      structure_group, dryrun)
 
 
 
