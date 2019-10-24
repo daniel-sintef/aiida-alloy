@@ -190,7 +190,8 @@ def get_timesorted_values(relax_node, arrayname, np_concatenate=True,
             return []
     return output_array
 
-def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed, verbose, extra_comments={}):
+def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed,
+                           energy_tol, verbose,  extra_comments={}):
     timesorted_steps = get_timesorted_values(relax_node, 'steps')
     num_steps = len(timesorted_steps)
     if num_steps == 0:
@@ -224,15 +225,27 @@ def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed, verbose, ext
        print('relaxation steps:',len(timesorted_steps))
 
     if write_only_relaxed == False:
-        for i in range(len(timesorted_cells)):
-            extra_comments["trajectory_step"] = i
-            write_runner_commentline(fileout, relax_node.uuid, extra_comments=extra_comments)
-            write_runner_cell(fileout, timesorted_cells[i])
-            write_runner_atomlines(fileout,
-               timesorted_positions[i],
-               elements,
-               atomicforce_array=timesorted_forces[i])
-            write_runner_finalline(fileout, energy=timesorted_energy[i])
+        trajectory_looprange = range(len(timesorted_cells))
+    if write_only_relaxed == True:
+        trajectory_looprange = [-1]
+    final_loop = trajectory_looprange[-1]
+    old_energy = timesorted_energy[0]
+    for i in trajectory_looprange:
+        del_e = np.abs(timesorted_energy[i] - old_energy)
+        if i != 0 and i != final_loop and del_e  < energy_tol:
+            print("Skipping step {} E_new: {} E_old:{} delE: {}".format(
+                 i, timesorted_energy[i], old_energy, del_e))
+            continue
+        else:
+            old_energy = timesorted_energy[i]
+        extra_comments["trajectory_step"] = i
+        write_runner_commentline(fileout, relax_node.uuid, extra_comments=extra_comments)
+        write_runner_cell(fileout, timesorted_cells[i])
+        write_runner_atomlines(fileout,
+           timesorted_positions[i],
+           elements,
+           atomicforce_array=timesorted_forces[i])
+        write_runner_finalline(fileout, energy=timesorted_energy[i])
 
     if bool(relax_node.inp.final_scf):
         print('final')
@@ -261,6 +274,8 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
          type=str, help="filename for outputfile, default = work_group+\".input.data\"")
 @click.option('-wor', '--write_only_relaxed', required=False, default=False,
          is_flag=True, help="only write the final relaxed structure")
+@click.option('-et', '--energy_tol', required=False, default=0.2,
+         help="Only dumps relaxation steps of minimum energy_tol(eV) apart")
 @click.option('-sreadme', '--supress_readme', is_flag=True,
          help="supresses the generation of a readme file")
 @click.option('-v', '--verbose', is_flag=True,
@@ -269,10 +284,12 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
               help="only output structures containing these elements")
 
 
-def createjob(group_name, filename, write_only_relaxed, supress_readme, verbose, output_elements):
+def createjob(group_name, filename, write_only_relaxed, energy_tol,
+              supress_readme, verbose, output_elements):
     ''' e.g.
     ./aiida_export_group_to_runner.py -gn Al6xxxDB_structuregroup
     '''
+    energy_tol = energy_tol*EV_TO_HARTREE
     all_nodes = get_allnodes_fromgroup(group_name)
     if not supress_readme:
         aiida_utils.create_READMEtxt()
@@ -323,7 +340,8 @@ def createjob(group_name, filename, write_only_relaxed, supress_readme, verbose,
                 write_pwbase_torunner(fileout, node)
             elif process_label == "PwRelaxWorkChain":
                 print('using write_pwrelax_torunner')
-                write_pwrelax_torunner(fileout, node, write_only_relaxed,verbose)
+                write_pwrelax_torunner(fileout, node,write_only_relaxed,
+                                       energy_tol,verbose)
             elif process_label == "ElasticWorkChain":
                 print("recursively adding Elastic nodes")
                 elastic_children = get_outputcalcs(node)

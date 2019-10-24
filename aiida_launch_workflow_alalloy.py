@@ -390,6 +390,9 @@ def launch(code_node, structure_group_name, workchain_group_name,
             num_machines = get_nummachines(structure, pseudo_familyname)
             if calc_method in ['relax', 'vc-relax']:
                num_machines += 4
+            else:
+               #TODO: get a better understanding how much lower this can be for SCF
+               num_machines += 4
             if num_machines > int(max_nodes_submit):
                 print "{} nodes requested, maximum is {}".format(num_machines, max_nodes_submit)
                 print "If you wish to launch please choose nodes manually with --number_of_nodes"
