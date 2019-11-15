@@ -32,7 +32,7 @@ def randomize_asestructure(ase_structure, seed):
             ase_structure[i].symbol = element_toinsert
     return ase_structure
 
-debug_global=0
+#debug_global=0
 def get_strained_structures(equilibrium_structure, strain_magnitudes,
                              symmetric_strains_only=True):
     import pymatgen as mg
@@ -41,10 +41,10 @@ def get_strained_structures(equilibrium_structure, strain_magnitudes,
     from pymatgen.analysis.elasticity.tensors import symmetry_reduce
 
 
-    global debug_global
-    debug_global += 1 
-    equilibrium_structure.write("/tmp/tmp_POSCAR/POSCAR_{}".format(debug_global),
-                               format='vasp')
+    #global debug_global
+    #debug_global += 1
+    #equilibrium_structure.write("/tmp/tmp_POSCAR/POSCAR_{}".format(debug_global),
+    #                           format='vasp')
     try:
         equilibrium_structure_mg = AseAtomsAdaptor.get_structure(equilibrium_structure)
         deformed_mat_set = DeformedStructureSet(equilibrium_structure_mg,
@@ -52,7 +52,7 @@ def get_strained_structures(equilibrium_structure, strain_magnitudes,
                                             shear_strains=strain_magnitudes)
     except Exception:
         equilibrium_structure.write("/tmp/POSCAR_fail", format='vasp')
-        raise Exception("Somethign spoooky!")
+        raise Exception("Something spoooky!")
 
     symmetry_operations_dict = {}
     deformations = deformed_mat_set.deformations
@@ -84,6 +84,8 @@ def get_strained_structures(equilibrium_structure, strain_magnitudes,
               help="stdev of random displacement in ang")
 @click.option('-nrs', '--number_randomized_samples', default=0, type=int,
               help="Number of randomized samples to generate")
+@click.option('-mx', '--max_atoms', default=30, type=int,
+              help="Maximum number of atoms to be distorted")
 @click.option('-sc', '--structure_comments', default="",
               help="Comment to be added to the extras")
 @click.option('-sg', '--structure_group_name', required=True,
@@ -94,7 +96,7 @@ def get_strained_structures(equilibrium_structure, strain_magnitudes,
               help="Prints structures and extras but does not store anything")
 def launch(input_group, input_structures, repeat_expansion,
            volumetric_strains, elastic_strains, random_displacement,
-           number_randomized_samples, structure_comments,
+           number_randomized_samples, max_atoms, structure_comments,
            structure_group_name, structure_group_description,
            dryrun):
     """
@@ -125,6 +127,9 @@ def launch(input_group, input_structures, repeat_expansion,
                       }
 
         input_structure_ase = structure_node.get_ase()
+        if len(input_structure_ase) > max_atoms:
+            print("Skipping {} too many atoms".format(structure_node))
+            continue
         input_structure_ase = input_structure_ase.repeat(repeat_expansion)
         deformations, strained_structures = get_strained_structures(input_structure_ase,
                                                                     elastic_strains)
