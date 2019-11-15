@@ -161,7 +161,10 @@ def get_timesorted_values(relax_node, arrayname, np_concatenate=True,
         # vc-relax calcuations require some double-counting
         if node.inp.parameters.get_dict()['CONTROL']['calculation'] == 'vc-relax':
             addextra_vcinfo = True
-        parser_warning = bool(node.out.output_parameters.get_dict()['parser_warnings'])
+        try:
+            parser_warning = bool(node.out.output_parameters.get_dict()['parser_warnings'])
+        except AttributeError:
+            parser_warning = True
         if parser_warning != 0:
             print("Skipping failed child {} of {}".format(node, relax_node))
             continue
