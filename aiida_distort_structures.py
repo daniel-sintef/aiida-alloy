@@ -19,6 +19,18 @@ def get_allstructures_fromgroup(group_name):
     all_nodes = [x[0] for x in qb.all()]
     return all_nodes
 
+def get_conventionalstructure(ase_structure):
+    from pymatgen.io.ase import AseAtomsAdaptor
+    from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+
+    mg_structure = AseAtomsAdaptor.get_structure(ase_structure)
+    sga = SpacegroupAnalyzer(mg_structure)
+    standard_structure = sga.get_conventional_standard_structure()
+    standard_ase = AseAtomsAdaptor.get_atoms(standard_structure)
+
+
+    return standard_ase
+
 
 def randomize_asestructure(ase_structure, seed):
     random_f = np.random.RandomState(seed).rand()
@@ -33,7 +45,8 @@ def randomize_asestructure(ase_structure, seed):
     return ase_structure
 
 #debug_global=0
-def get_strained_structures(equilibrium_structure, strain_magnitudes,
+def get_strained_structures(equilibrium_structure, norm_strains,
+                             shear_strains,
                              symmetric_strains_only=True):
     import pymatgen as mg
     from pymatgen.analysis.elasticity import DeformedStructureSet
@@ -48,8 +61,8 @@ def get_strained_structures(equilibrium_structure, strain_magnitudes,
     try:
         equilibrium_structure_mg = AseAtomsAdaptor.get_structure(equilibrium_structure)
         deformed_mat_set = DeformedStructureSet(equilibrium_structure_mg,
-                                            norm_strains=strain_magnitudes,
-                                            shear_strains=strain_magnitudes)
+                                            norm_strains=norm_strains,
+                                            shear_strains=shear_strains)
     except Exception:
         equilibrium_structure.write("/tmp/POSCAR_fail", format='vasp')
         raise Exception("Something spoooky!")
@@ -78,8 +91,10 @@ def get_strained_structures(equilibrium_structure, strain_magnitudes,
               help="A supercell expansion to apply prior to generating the structure")
 @click.option('-vs', '--volumetric_strains', default="0",
               help="A comma sepearted list of volumetric strains to apply")
-@click.option('-as', '--elastic_strains', default="0",
-              help="A comma sepearted list of strain magnitudes to apply")
+@click.option('-ns', '--norm_strains', default="0",
+              help="A comma sepearted list of norm strain magnitudes to apply")
+@click.option('-ss', '--shear_strains', default="0",
+              help="A comma sepearted list of shear strain magnitudes to apply")
 @click.option('-rdisp', '--random_displacement', default=0.15, type=float,
               help="stdev of random displacement in ang")
 @click.option('-nrs', '--number_randomized_samples', default=0, type=int,
@@ -88,6 +103,8 @@ def get_strained_structures(equilibrium_structure, strain_magnitudes,
               help="Maximum number of atoms to be distorted")
 @click.option('-sc', '--structure_comments', default="",
               help="Comment to be added to the extras")
+@click.option('-ucs', '--use_conventional_structure', is_flag=True,
+              help='Turns the input structure to its pymatgen conventional form prior to running')
 @click.option('-sg', '--structure_group_name', required=True,
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
@@ -95,8 +112,10 @@ def get_strained_structures(equilibrium_structure, strain_magnitudes,
 @click.option('-dr', '--dryrun', is_flag=True,
               help="Prints structures and extras but does not store anything")
 def launch(input_group, input_structures, repeat_expansion,
-           volumetric_strains, elastic_strains, random_displacement,
+           volumetric_strains, norm_strains, shear_strains,
+           random_displacement,
            number_randomized_samples, max_atoms, structure_comments,
+           use_conventional_structure,
            structure_group_name, structure_group_description,
            dryrun):
     """
@@ -104,7 +123,8 @@ def launch(input_group, input_structures, repeat_expansion,
     """
     if not dryrun:
         structure_group = Group.get_or_create(
-                             name=structure_group_name, description=structure_group_description)[0]
+                             name=structure_group_name,
+                             description=structure_group_description)[0]
     else:
         structure_group = None
 
@@ -116,7 +136,8 @@ def launch(input_group, input_structures, repeat_expansion,
     else:
         raise Exception("Must use either input group or input structures")
     volumetric_strains = [float(x) for x in volumetric_strains.split(',')]
-    elastic_strains = [float(x) for x in elastic_strains.split(',')]
+    norm_strains = [float(x) for x in norm_strains.split(',')]
+    shear_strains = [float(x) for x in shear_strains.split(',')]
     repeat_expansion = [int(x) for x in repeat_expansion.split(',')]
 
     for structure_node in structure_nodes:
@@ -127,12 +148,16 @@ def launch(input_group, input_structures, repeat_expansion,
                       }
 
         input_structure_ase = structure_node.get_ase()
+        if use_conventional_structure:
+           input_structure_ase = get_conventionalstructure(input_structure_ase)
+           extras['conventional_structure'] = True
         if len(input_structure_ase) > max_atoms:
             print("Skipping {} too many atoms".format(structure_node))
             continue
         input_structure_ase = input_structure_ase.repeat(repeat_expansion)
         deformations, strained_structures = get_strained_structures(input_structure_ase,
-                                                                    elastic_strains)
+                                                                    norm_strains,
+                                                                    shear_strains)
         for i in range(len(strained_structures)):
             extras['deformation'] = deformations[i]
             straindeformed_structure = copy.deepcopy(strained_structures[i])

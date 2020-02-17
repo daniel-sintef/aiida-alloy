@@ -8,6 +8,7 @@ import aiida
 aiida.try_load_dbenv()
 from aiida.orm.querybuilder import QueryBuilder
 from aiida.orm import Node, Group
+from aiida.orm import load_node
 
 def get_structurenode_metadict(structure_node):
     meta_dict = structure_node.get_extras()
@@ -35,9 +36,11 @@ def get_allnodes_fromgroup(group_name):
 @click.command()
 @click.option('-od', '--output_dir', required=True
          , help="Directory to dump output files")
-@click.option('-gn', '--group_name', required=True,
+@click.option('-gn', '--group_name',default=None,
               type=str, help="Group to export identified by name")
-def createjob(output_dir, group_name):
+@click.option('-u', '--uuid', default=None,
+              type=str, help="Structure to export by uuid")
+def createjob(output_dir, group_name, uuid):
     '''
     Dumps the contents of an AiiDA group into a directory. Creates a set of
     VASP-poscar files with the name AIIDA_<AiiDA-pk> for each of
@@ -49,7 +52,12 @@ def createjob(output_dir, group_name):
     except Exception:
         pass
 
-    all_entries = get_allnodes_fromgroup(group_name)
+    if group_name is not None:
+        all_entries = get_allnodes_fromgroup(group_name)
+    elif uuid:
+        all_entries = [load_node(uuid)]
+    else:
+        raise Exception("You must provide either group_name or uuid")
 
     for structure_node in all_entries:
         base_filename = "AIIDA_{}".format(structure_node.pk)

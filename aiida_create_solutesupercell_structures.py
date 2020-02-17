@@ -168,7 +168,7 @@ def store_asestructure(ase_structure, extras, structure_group, dryrun):
 @click.option('-spsh', '--supercell_shape', required=True,
               help="shape of the supercell to use, format: Nx,Ny,Nz")
 @click.option('-me', '--matrix_element', required=True,
-              help="element to be used as the ")
+              help="element to be used as the matrix ")
 @click.option('-fse', '--firstsolute_elements', required=True,
               help="First solute element, always centered at the origin of the supercell."
               " Can pass a list of elements using comma seperation"

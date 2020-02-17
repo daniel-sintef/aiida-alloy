@@ -227,10 +227,13 @@ def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed,
     if verbose:
        print('relaxation steps:',len(timesorted_steps))
 
-    if write_only_relaxed == False:
+    final_scf = bool(relax_node.inp.final_scf)
+    if not write_only_relaxed:
         trajectory_looprange = range(len(timesorted_cells))
-    if write_only_relaxed == True:
+    elif not final_scf:
         trajectory_looprange = [-1]
+    else:
+        trajectory_looprange = []
     final_loop = trajectory_looprange[-1]
     old_energy = timesorted_energy[0]
     for i in trajectory_looprange:
@@ -250,7 +253,7 @@ def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed,
            atomicforce_array=timesorted_forces[i])
         write_runner_finalline(fileout, energy=timesorted_energy[i])
 
-    if bool(relax_node.inp.final_scf):
+    if final_scf:
         print('final')
         final_basenode = get_timesorted_basenodes(relax_node)[-1]
         extra_comments["trajectory_step"] = "final_scf"
@@ -277,7 +280,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
          type=str, help="filename for outputfile, default = work_group+\".input.data\"")
 @click.option('-wor', '--write_only_relaxed', required=False, default=False,
          is_flag=True, help="only write the final relaxed structure")
-@click.option('-et', '--energy_tol', required=False, default=0.2,
+@click.option('-et', '--energy_tol', required=False, default=0.5,
          help="Only dumps relaxation steps of minimum energy_tol(eV) apart")
 @click.option('-sreadme', '--supress_readme', is_flag=True,
          help="supresses the generation of a readme file")
