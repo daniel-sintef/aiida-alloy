@@ -6,13 +6,13 @@ from pymatgen.analysis.elasticity.stress import Stress
 from pymatgen.analysis.elasticity.elastic import ElasticTensor
 import numpy as np
 from aiida.common.extendeddicts import AttributeDict
-from aiida.orm.data.base import Str, Bool, List
-from aiida.orm.data.array import ArrayData
-from aiida.orm.data.structure import StructureData
-from aiida.orm.data.parameter import ParameterData
-from aiida.work.workchain import WorkChain, ToContext, if_, append_
+from aiida.orm import Str, Bool, List
+from aiida.orm.nodes.data.array import ArrayData
+from aiida.orm import StructureData
+from aiida.orm import Dict
+from aiida.engine import WorkChain, ToContext, if_, append_
 from aiida_quantumespresso.workflows.pw.relax import PwRelaxWorkChain
-from aiida.work.workfunctions import workfunction
+from aiida.engine.workfunctions import workfunction
 
 def get_qerelax_stress(workchain):
     '''
@@ -248,7 +248,7 @@ class ElasticWorkChain(WorkChain):
         symmetry_operations_dict = symmetry_reduce(self.ctx.deformations,
                                                         equilibrium_structure)
         symmetry_mapping = make_symmopdict_aiidafriendly(symmetry_operations_dict)
-        symmetry_mapping = ParameterData(dict=symmetry_mapping)
+        symmetry_mapping = Dict(dict=symmetry_mapping)
 
         elastic_outputs.set_array('strains', np.array(self.ctx.strains))
         elastic_outputs.set_array('stresses', np.array(self.ctx.stresses))

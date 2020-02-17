@@ -7,8 +7,8 @@ from aiida_create_solutesupercell_structures import *
 from aiida.orm import Node
 from aiida.orm.querybuilder import QueryBuilder
 from aiida.orm import Calculation, Group, WorkCalculation
-from aiida.orm.data.structure import StructureData
-from aiida.orm.data.array.trajectory import TrajectoryData
+from aiida.orm import StructureData
+from aiida.orm.nodes.data.array.trajectory import TrajectoryData
 from aiida.orm.utils import load_node, WorkflowFactory
 import click
 from ase import Atoms
