@@ -21,8 +21,8 @@ def prep_elementlist(elementlist):
     if elementlist is None or len(elementlist) == 0:
         return []
     elementlist = list(elementlist.split(','))
-    elementlist = map(lambda x:x if x.lower()!= VACANCY_USER_SYMBOL.lower()
-                      else VACANCY_INTERNAL_SYMBOL, elementlist)
+    elementlist = [x if x.lower()!= VACANCY_USER_SYMBOL.lower()
+                      else VACANCY_INTERNAL_SYMBOL for x in elementlist]
     return elementlist
 
 GROUP_STRUCTURE_LIST=[]
@@ -70,7 +70,7 @@ def return_nn_distanceAndIndex(ase_supercell):
     distance_values = supercell_frame['distance'].values
     index_values = supercell_frame.index.values
 
-    nn_distanceindex_frame = pd.DataFrame(data=zip(distance_values,index_values),
+    nn_distanceindex_frame = pd.DataFrame(data=list(zip(distance_values,index_values)),
                                           columns=['distances','indexes'])
 
     return nn_distanceindex_frame
@@ -140,14 +140,14 @@ def store_asestructure(ase_structure, extras, structure_group, dryrun):
     alreadyin_group = checkif_structure_alreadyin_group(ase_structure, structure_group)
 
     if alreadyin_group:
-        print "skiping structure, already stored in group: {}".format(ase_structure)
+        print(("skiping structure, already stored in group: {}".format(ase_structure)))
         return
 
     if dryrun:
-        print "structure: {}".format(ase_structure)
-        print "extras: {}".format(extras)
+        print(("structure: {}".format(ase_structure)))
+        print(("extras: {}".format(extras)))
     else:
-        print "storing structure: {}".format(ase_structure)
+        print(("storing structure: {}".format(ase_structure)))
         aiida_structure = StructureData()
         aiida_structure.set_ase(ase_structure)
         aiida_structure_stored = aiida_structure.store()
@@ -158,7 +158,7 @@ def store_asestructure(ase_structure, extras, structure_group, dryrun):
         aiida_structure_stored.set_extra("chem_formula", ase_structure.get_chemical_formula())
 
         structure_group.add_nodes(aiida_structure_stored)
-        print("{} stored".format(aiida_structure_stored))
+        print(("{} stored".format(aiida_structure_stored)))
 
     return
 

@@ -25,7 +25,7 @@ def launch(phonopy_basedir, structure_group_name, structure_group_description, d
     json file wich contains a dump of the meta-data
     """
 
-    print "loading dataset: {} to group: {}".format(phonopy_basedir, structure_group_name)
+    print("loading dataset: {} to group: {}".format(phonopy_basedir, structure_group_name))
     # Setup/Retrieve the Group
     structure_group = Group.get_or_create(name=structure_group_name,
                             description=structure_group_description)[0]
@@ -35,8 +35,8 @@ def launch(phonopy_basedir, structure_group_name, structure_group_description, d
     for phonopydir in phonopydirs:
         phonopy_json = os.path.join(phonopydir, "AiiDA.json")
         if not os.path.isfile(phonopy_json):
-            print("No meta file found for {} refusing to load".format(
-                   phonopy_dumpfile))
+            print(("No meta file found for {} refusing to load".format(
+                   phonopy_dumpfile)))
             continue
         with open(phonopy_json, 'r') as fp:
             phonopy_meta = json.load(fp)

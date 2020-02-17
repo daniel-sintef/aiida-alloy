@@ -25,7 +25,7 @@ def randomize_asestructure(ase_structure, elements, concentrations, seed):
         element_index = determine_selection(concentrations)
         element_toinsert = elements[element_index]
         if element_toinsert == "Vac":
-            print "DELETED!!!"
+            print("DELETED!!!")
             del ase_structure[i]
         else:
             ase_structure[i].symbol = element_toinsert
@@ -34,7 +34,7 @@ def randomize_asestructure(ase_structure, elements, concentrations, seed):
 def get_averaged_lattice(lattices, concentrations):
     if len(lattices) != len(concentrations):
         raise Exception("Number of lattices must match concentrations")
-    lattice_concentration = zip(lattices, concentrations)
+    lattice_concentration = list(zip(lattices, concentrations))
     lattice_normalization = np.sum([x[1] for x in 
                                     lattice_concentration
                                     if x[0] >= 0 ])

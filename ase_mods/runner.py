@@ -1,4 +1,4 @@
-from __future__ import print_function
+
 
 import re
 import numpy as np
@@ -7,7 +7,7 @@ from ase.atoms import Atoms
 from ase.calculators.calculator import all_properties, Calculator
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.parallel import paropen
-from ase.utils import basestring
+from ase.utils import str
 from ase import units
 
 def read_runner(fileobj, index=-1):
@@ -51,9 +51,9 @@ def read_runner(fileobj, index=-1):
     if isinstance(index, int):
         if index < 0:
             tmpsnp = len(frames) + index
-            trbl = range(tmpsnp, tmpsnp + 1, 1)
+            trbl = list(range(tmpsnp, tmpsnp + 1, 1))
         else:
-            trbl = range(index, index + 1, 1)
+            trbl = list(range(index, index + 1, 1))
     elif isinstance(index, slice):
         start = index.start
         stop = index.stop
@@ -72,7 +72,7 @@ def read_runner(fileobj, index=-1):
         elif stop < 0:
             stop = len(frames) + stop
 
-        trbl = range(start, stop, step)
+        trbl = list(range(start, stop, step))
         if step < 0:
             trbl.reverse()
 

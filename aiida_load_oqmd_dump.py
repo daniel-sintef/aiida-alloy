@@ -25,21 +25,21 @@ def launch(oqmd_dumpdir, structure_group_name, structure_group_description, dryr
     json file wich contains a dump of the meta-data
     """
 
-    print "loading dataset: {} to group: {}".format(oqmd_dumpdir, structure_group_name)
+    print("loading dataset: {} to group: {}".format(oqmd_dumpdir, structure_group_name))
     # Setup/Retrieve the Group
     structure_group = Group.get_or_create(name=structure_group_name,
                             description=structure_group_description)[0]
 
     oqmd_dumpfiles = glob.glob(oqmd_dumpdir+'/*')
-    oqmd_dumpfiles = filter(lambda x: '.' not in os.path.basename(x), oqmd_dumpfiles)
-    print oqmd_dumpfiles
+    oqmd_dumpfiles = [x for x in oqmd_dumpfiles if '.' not in os.path.basename(x)]
+    print(oqmd_dumpfiles)
     for oqmd_dumpfile in oqmd_dumpfiles:
         oqmd_structure = ase.io.read(oqmd_dumpfile, format='vasp')
 
         oqmd_json = oqmd_dumpfile+'.json'
         if not os.path.isfile(oqmd_json):
-            print("No meta file found for {} refusing to load".format(
-                   oqmd_dumpfile))
+            print(("No meta file found for {} refusing to load".format(
+                   oqmd_dumpfile)))
             continue
         with open(oqmd_json, 'r') as fp:
             oqmd_meta = json.load(fp)

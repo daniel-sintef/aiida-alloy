@@ -19,10 +19,10 @@ def get_qerelax_stress(workchain):
     Get the stress output of a PwRelaxWorkchain
     '''
     outputs_dict = workchain.get_outputs_dict()
-    output_parameters = outputs_dict[u'output_parameters']
+    output_parameters = outputs_dict['output_parameters']
 
     output_parameters_dict = output_parameters.get_dict()
-    stress = np.array(output_parameters_dict[u'stress'])
+    stress = np.array(output_parameters_dict['stress'])
     return stress
 
 def _get_deformed_structures(equilibrium_structure, strain_magnitudes, 
@@ -138,7 +138,7 @@ class ElasticWorkChain(WorkChain):
             return self.exit_codes.ERROR_SUB_PROCESS_FAILED_RELAX
         else:
             outputs_dict = workchain.get_outputs_dict()
-            output_parameters_dict = outputs_dict[u'output_parameters'].get_dict()
+            output_parameters_dict = outputs_dict['output_parameters'].get_dict()
             stress = np.array(output_parameters_dict['stress'])
 
             self.ctx.equilibrium_structure = workchain.out.output_structure
@@ -241,7 +241,7 @@ class ElasticWorkChain(WorkChain):
         #An ugly ugly function to make the symmetry_operations_dict storable
         def make_symmopdict_aiidafriendly(symmopdict):
             aiida_symmopdict = dict((str(k).replace('.',','), [x.as_dict() for x in v])
-                                    for k, v in symmopdict.iteritems()) 
+                                    for k, v in symmopdict.items()) 
             return aiida_symmopdict
 
         equilibrium_structure = self.ctx.equilibrium_structure.get_pymatgen_structure()

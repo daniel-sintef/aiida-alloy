@@ -182,7 +182,7 @@ def wf_setupparams(base_parameter, structure,
 
         import collections
         def update(d, u):
-            for k, v in u.iteritems():
+            for k, v in u.items():
                 if isinstance(v, collections.Mapping):
                     d[k] = update(d.get(k, {}), v)
                 else:
@@ -293,7 +293,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
     from aiida.work.launch import submit, run
     # announce if running in debug mode
     if submit_debug:
-        print "Running in debug mode!"
+        print("Running in debug mode!")
 
     # setup parameters
     code = load_node(code_node)
@@ -315,8 +315,8 @@ def launch(code_node, structure_group_name, workchain_group_name,
     )
 
     if len(uncalculated_structures) == 0:
-        print("All structures in {} already have associated workchains in "
-              "the group {}".format(structure_group_name, workchain_group_name))
+        print(("All structures in {} already have associated workchains in "
+              "the group {}".format(structure_group_name, workchain_group_name)))
         sys.exit()
 
     # determine number of calculations to submit
@@ -331,12 +331,12 @@ def launch(code_node, structure_group_name, workchain_group_name,
     for structure in uncalculated_structures:
         if use_conventional_structure:
             structure = wf_getconventionalstructure(structure)
-        print "Preparing to launch {}".format(structure)
-        print "calcs to submit: {} max calcs:{}".format(calcs_to_submit, max_active_calculations)
+        print("Preparing to launch {}".format(structure))
+        print("calcs to submit: {} max calcs:{}".format(calcs_to_submit, max_active_calculations))
 
         if len(structure.get_ase()) > max_atoms_submit:
-            print "{} has more atoms than the max allowed {}".format(structure, max_atoms_submit)
-            print "If you wish to overide please use --max_atoms_submit"
+            print("{} has more atoms than the max allowed {}".format(structure, max_atoms_submit))
+            print("If you wish to overide please use --max_atoms_submit")
             continue
 
         # ensure no more than the max number of calcs are submitted
@@ -348,13 +348,13 @@ def launch(code_node, structure_group_name, workchain_group_name,
                 calcs_to_submit = max_active_elastic - running_elastic
             if calcs_to_submit <= 0:  # in case jobs finished during submission
                 if calc_method == 'elastic':
-                    print("{} elastic running,"
+                    print(("{} elastic running,"
                           "max num elastic {} waiting....".format(
-                              running_elastic, max_active_elastic))
+                              running_elastic, max_active_elastic)))
                 else:
-                    print("{} calcs running,"
+                    print(("{} calcs running,"
                           "max num calcs {} waiting....".format(
-                              running_calculations, max_active_calculations))
+                              running_calculations, max_active_calculations)))
                 time.sleep(sleep_interval)
 
         # start timer to inspect job submission times
@@ -391,8 +391,8 @@ def launch(code_node, structure_group_name, workchain_group_name,
             if calc_method in ['relax', 'vc-relax']:
                num_machines += 4
             if num_machines > int(max_nodes_submit):
-                print "{} nodes requested, maximum is {}".format(num_machines, max_nodes_submit)
-                print "If you wish to launch please choose nodes manually with --number_of_nodes"
+                print("{} nodes requested, maximum is {}".format(num_machines, max_nodes_submit))
+                print("If you wish to launch please choose nodes manually with --number_of_nodes")
                 continue
         options_dict = {
             'max_wallclock_seconds': max_wallclock_seconds,
@@ -479,15 +479,15 @@ def launch(code_node, structure_group_name, workchain_group_name,
         def print_timing(start):
             end = timer()
             time_elapsed = end - start
-            print "timing: {}s".format(time_elapsed)
+            print("timing: {}s".format(time_elapsed))
 
         calcs_to_submit -= 1
         if dryrun:
-            print "ase_structure: {}".format(structure.get_ase())
-            print "aiida_settings: {}".format(settings.get_dict())
+            print("ase_structure: {}".format(structure.get_ase()))
+            print("aiida_settings: {}".format(settings.get_dict()))
             #print "aiida_parameters: {}".format(inputs['base']['parameters'].get_dict())
-            print "aiida_options: {}".format(workchain_options.get_dict())
-            print "aiida_inputs: {}".format(inputs)
+            print("aiida_options: {}".format(workchain_options.get_dict()))
+            print("aiida_inputs: {}".format(inputs))
             print_timing(start)
             continue
         elif run_debug:
@@ -495,7 +495,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
             sys.exit()
         else:
             node = submit(WorkChain, **inputs)
-            print "WorkChain: {} submitted".format(node)
+            print("WorkChain: {} submitted".format(node))
             print_timing(start)
 
         if submit_debug:

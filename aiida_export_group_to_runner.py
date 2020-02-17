@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from __future__ import print_function
+
 import aiida
 aiida.try_load_dbenv()
 from aiida.common import constants
@@ -229,7 +229,7 @@ def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed,
 
     final_scf = bool(relax_node.inp.final_scf)
     if not write_only_relaxed:
-        trajectory_looprange = range(len(timesorted_cells))
+        trajectory_looprange = list(range(len(timesorted_cells)))
     elif not final_scf:
         trajectory_looprange = [-1]
     else:

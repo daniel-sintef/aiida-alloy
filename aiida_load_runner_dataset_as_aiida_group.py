@@ -12,7 +12,7 @@ def add_parentstructure_extras(structurenode, parent_uuid):
     # NOTE: consider adding a check if parent_extras is already assigned
     structure_extras = structurenode.get_extras()
     parent_extras = load_node(parent_uuid).get_extras()
-    for key, value in parent_extras.items():
+    for key, value in list(parent_extras.items()):
         if key not in structure_extras:
             structurenode.set_extra(key, value)
     structurenode.set_extra('parent_extras', True)
@@ -27,7 +27,7 @@ def add_parentstructure_extras(structurenode, parent_uuid):
 @click.option('-pcs', '--parse_comments_structure', is_flag=True)
 def launch(dataset_path, group_name, group_description, 
            parse_comments_path, parse_comments_structure):
-    print "loading dataset: {} to group: {}".format(dataset_path, group_name)
+    print("loading dataset: {} to group: {}".format(dataset_path, group_name))
 
     # Setup/Retrieve the Group
     g = Group.get_or_create(name=group_name, description=group_description)[0]
@@ -49,7 +49,7 @@ def launch(dataset_path, group_name, group_description,
                 structure_path = ase_structure.comment.strip().split()[-1][3:]
                 aiida_structure_stored.set_extra("structure_path", structure_path)
             except AttributeError:
-                print "could not set structure_path on {}".format(ase_structure)
+                print("could not set structure_path on {}".format(ase_structure))
                 pass
         # Add in details of parent structure uuid
         if parse_comments_structure:
@@ -58,7 +58,7 @@ def launch(dataset_path, group_name, group_description,
                 aiida_structure_stored.set_extra("parent_uuid", parent_uuid)
                 add_parentstructure_extras(aiida_structure_stored, parent_uuid)
             except AttributeError:
-                print "could not set parent_uuid on {}".format(ase_structure)
+                print("could not set parent_uuid on {}".format(ase_structure))
                 pass
 
 
@@ -69,8 +69,8 @@ def launch(dataset_path, group_name, group_description,
             aiida_structure_stored.set_extra("chem_formula",
                           ase_structure.get_chemical_formula())
         except AttributeError:
-            print "could not set either num_atoms or chemical_formula " \
-                  " on {}".format(ase_structure)
+            print("could not set either num_atoms or chemical_formula " \
+                  " on {}".format(ase_structure))
             pass
 
         # add the structure to the group

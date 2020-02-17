@@ -17,7 +17,7 @@ def get_displacements_array(displacement):
     if len(displacement.split(',')) == 3:
        d_min,d_max,d_inc = displacement.split(',')
        if d_max > 1:
-           print "WARNING: max displacement {} is larger than 1".format(displacement)
+           print("WARNING: max displacement {} is larger than 1".format(displacement))
        displacements = np.arange(float(d_min),float(d_max),float(d_inc))
     else:
        displacements = np.array([float(displacement)])
@@ -160,13 +160,13 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
         extras['inputstructure_uuid'] = custom_structure.uuid
         #Ensuring that the structure has all the required labels
         if 'label' not in extras:
-            print("WARNING: label not found in {} extras".format(custom_structure))
+            print(("WARNING: label not found in {} extras".format(custom_structure)))
         if 'x_direction' not in extras:
-            print("WARNING: x_direction not found in {} extras".format(custom_structure))
+            print(("WARNING: x_direction not found in {} extras".format(custom_structure)))
         if 'y_direction' not in extras:
-            print("WARNING: y_direction not found in {} extras".format(custom_structure))
+            print(("WARNING: y_direction not found in {} extras".format(custom_structure)))
         if 'surface_plane' not in extras:
-            print("WARNING: surface_plane not found in {} extras".format(custom_structure))
+            print(("WARNING: surface_plane not found in {} extras".format(custom_structure)))
         undistorted_structure =  undistorted_structure.repeat(
                                    [periodic_xrepeats, periodic_yrepeats, periodic_zrepeats]
                                                              )
@@ -226,7 +226,7 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
         extras['sol1_element'] = solute_element
         layer_frame = get_layer_frame(distorted_structure, (0,0,1))
         layer_frame = layer_frame.drop_duplicates("layer_index").reset_index()
-        solute_layers = range(int(len(layer_frame)/2))
+        solute_layers = list(range(int(len(layer_frame)/2)))
         if refsolute:
             solute_layers = [0]
         if testsolute_layer:

@@ -38,7 +38,7 @@ def randomize_asestructure(ase_structure, seed):
         element_index = determine_selection(concentrations)
         element_toinsert = elements[element_index]
         if element_toinsert == "Vac":
-            print "DELETED!!!"
+            print("DELETED!!!")
             del ase_structure[i]
         else:
             ase_structure[i].symbol = element_toinsert
@@ -152,7 +152,7 @@ def launch(input_group, input_structures, repeat_expansion,
            input_structure_ase = get_conventionalstructure(input_structure_ase)
            extras['conventional_structure'] = True
         if len(input_structure_ase) > max_atoms:
-            print("Skipping {} too many atoms".format(structure_node))
+            print(("Skipping {} too many atoms".format(structure_node)))
             continue
         input_structure_ase = input_structure_ase.repeat(repeat_expansion)
         deformations, strained_structures = get_strained_structures(input_structure_ase,

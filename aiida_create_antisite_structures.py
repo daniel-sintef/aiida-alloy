@@ -55,7 +55,7 @@ def get_unique_sites(structure_ase):
     elements_count = ["{}{}".format(x[0],x[1]) for x in zip(elements, count)]
     wyckoff = symmstruct_mg.wyckoff_symbols
 
-    unique_sites = zip(site_indices, elements_count, wyckoff)
+    unique_sites = list(zip(site_indices, elements_count, wyckoff))
     return unique_sites
 
 

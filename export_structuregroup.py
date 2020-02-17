@@ -63,13 +63,13 @@ def createjob(output_dir, group_name, uuid):
         base_filename = "AIIDA_{}".format(structure_node.pk)
         output_path = os.path.join(output_dir, base_filename)
         if os.path.isfile(output_path):
-           print("{} already exists skipping".format(output_path))
+           print(("{} already exists skipping".format(output_path)))
            continue
 
         try:
             export_structure_node(structure_node, output_path)
         except Exception:
-            print("Failed to parse {}".format(structure_node))
+            print(("Failed to parse {}".format(structure_node)))
             fail_dict = get_metadict_from_oqmdentry(structure_node)
             with open(output_path+'.EXPORT_FAIL', 'w') as fp:
                 json.dump(fail_dict, fp)
