@@ -5,14 +5,14 @@ import sys
 
 import aiida
 aiida.try_load_dbenv()
-from aiida.work.workfunctions import workfunction
-from aiida.orm.data.parameter import ParameterData
+from aiida.engine.workfunctions import workfunction
+from aiida.orm import Dict
 
 
 def retrieve_alluncalculated_structures(structure_group_name,
                                         workchain_group_name=None):
-    from aiida.orm.group import Group
-    from aiida.orm.data.structure import StructureData
+    from aiida.orm import Group
+    from aiida.orm import StructureData
     from aiida.orm.calculation import WorkCalculation
     from aiida.orm.querybuilder import QueryBuilder
 
@@ -102,7 +102,7 @@ def get_kmeshfrom_kptper_recipang(aiida_structure, kptper_recipang):
 
 def get_nummachines(structure, pseudo_familyname):
     # NOTE: used very adhoc guess for nodes, assuming quadratic scaling
-    from aiida.orm.data.upf import get_pseudos_from_structure
+    from aiida.orm.nodes.data.upf import get_pseudos_from_structure
     pseudos = get_pseudos_from_structure(structure, pseudo_familyname)
     num_electrons = get_numelectrons_structure_upffamily(structure, pseudos)
     a2 = 1.5*10**-6
@@ -142,7 +142,7 @@ def wf_getconventionalstructure(structuredata):
         using spglib
     :param structuredata: original StructureData
     '''
-    from aiida.orm.data.structure import StructureData
+    from aiida.orm import StructureData
     from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
     mg_structure = structuredata.get_pymatgen()
@@ -156,7 +156,7 @@ def wf_getconventionalstructure(structuredata):
 
 @workfunction
 def wf_getkpoints(aiida_structure, kptper_recipang):
-    from aiida.orm.data.array.kpoints import KpointsData
+    from aiida.orm.nodes.data.array.kpoints import KpointsData
 
     def get_kmeshfrom_kptper_recipang(aiida_structure, kptper_recipang):
         import numpy as np
@@ -178,7 +178,7 @@ def wf_getkpoints(aiida_structure, kptper_recipang):
 def wf_setupparams(base_parameter, structure,
                    pseudo_familyname, nume2bnd_ratio,
                    additional_parameter):
-        from aiida.orm.data.upf import get_pseudos_from_structure
+        from aiida.orm.nodes.data.upf import get_pseudos_from_structure
 
         import collections
         def update(d, u):
@@ -198,7 +198,7 @@ def wf_setupparams(base_parameter, structure,
 
         additional_dict = additional_parameter.get_dict()
         parameter_dict.update(additional_dict)
-        parameters = ParameterData(dict=parameter_dict)
+        parameters = Dict(dict=parameter_dict)
 
         return parameters
 
@@ -207,7 +207,7 @@ def wf_delete_vccards(parameter):
     new_dict = parameter.get_dict()
     if 'CELL' in new_dict:
         del new_dict['CELL']
-    return ParameterData(dict=new_dict)
+    return Dict(dict=new_dict)
 
 
 
@@ -285,12 +285,12 @@ def launch(code_node, structure_group_name, workchain_group_name,
            sleep_interval, z_movement_only, z_cellrelax_only,
            strain_magnitudes, use_all_strains,
            keep_workdir, dryrun, submit_debug, run_debug):
-    from aiida.orm.group import Group
+    from aiida.orm import Group
     from aiida.orm.utils import load_node, WorkflowFactory
-    from aiida.orm.data.base import Bool, Float, Int, Str, List
-    from aiida.orm.data.parameter import ParameterData 
-    from aiida.orm.data.structure import StructureData 
-    from aiida.work.launch import submit, run
+    from aiida.orm import Bool, Float, Int, Str, List
+    from aiida.orm import Dict 
+    from aiida.orm import StructureData 
+    from aiida.engine.launch import submit, run
     # announce if running in debug mode
     if submit_debug:
         print("Running in debug mode!")
@@ -373,7 +373,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
             additional_dict["CELL"]["cell_dofree"] = "z"
 
         # determine number of bands & setup the parameters
-        additional_parameter = ParameterData(dict=additional_dict)
+        additional_parameter = Dict(dict=additional_dict)
         parameters = wf_setupparams(base_parameter,
                                     structure,
                                     Str(pseudo_familyname),
@@ -405,7 +405,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
             options_dict['resources']['num_machines'] = num_machines
             options_dict['max_wallclock_seconds'] = int(30*60)
             options_dict['queue_name'] = 'debug'
-        workchain_options = ParameterData(dict=options_dict)
+        workchain_options = Dict(dict=options_dict)
 
         if npools:
             nk = npools
@@ -421,7 +421,7 @@ def launch(code_node, structure_group_name, workchain_group_name,
             num_atoms = len(structure.get_ase())
             coordinate_fix = [[True,True,False]]*num_atoms
             settings_dict['fixed_coords'] = coordinate_fix
-        settings = ParameterData(dict=settings_dict)
+        settings = Dict(dict=settings_dict)
 
         # setup inputs & submit workchain
         clean_workdir = not keep_workdir

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import aiida
 aiida.try_load_dbenv()
-from aiida.orm.group import Group
+from aiida.orm import Group
 from aiida.orm import StructureData
 from aiida_create_solutesupercell_structures import *
 import ase

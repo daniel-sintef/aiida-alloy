@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 import aiida
 aiida.load_dbenv()
-from aiida.orm.group import Group
+from aiida.orm import Group
 from aiida.orm.utils import load_node
-from aiida.orm.data.structure import StructureData
+from aiida.orm import StructureData
 import ase
 import ase.io
 import click

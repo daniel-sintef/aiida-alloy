@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import aiida
-aiida.try_load_dbenv()
-from aiida.orm.group import Group
-from aiida.orm.data.structure import StructureData
+aiida.load_profile()
+from aiida.orm import Group
+from aiida.orm import StructureData
 import ase
 from ase.build import sort
 import click
@@ -77,8 +77,8 @@ def return_nn_distanceAndIndex(ase_supercell):
 
 
 def get_all_asestrcture_from_structuregroup(structure_group):
-    from aiida.orm.group import Group
-    from aiida.orm.data.structure import StructureData
+    from aiida.orm import Group
+    from aiida.orm import StructureData
     from aiida.orm.calculation import WorkCalculation
     from aiida.orm.querybuilder import QueryBuilder
 
@@ -220,7 +220,8 @@ def launch(lattice_size,
 
     if not dryrun:
         structure_group = Group.get_or_create(
-                             name=structure_group_name, description=structure_group_description)[0]
+                             name=structure_group_name,
+                             description=structure_group_description)[0]
     else:
         structure_group = None
 
