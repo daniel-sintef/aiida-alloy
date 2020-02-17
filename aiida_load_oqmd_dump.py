@@ -27,7 +27,7 @@ def launch(oqmd_dumpdir, structure_group_name, structure_group_description, dryr
 
     print("loading dataset: {} to group: {}".format(oqmd_dumpdir, structure_group_name))
     # Setup/Retrieve the Group
-    structure_group = Group.get_or_create(name=structure_group_name,
+    structure_group = Group.objects.get_or_create(name=structure_group_name,
                             description=structure_group_description)[0]
 
     oqmd_dumpfiles = glob.glob(oqmd_dumpdir+'/*')

@@ -88,7 +88,7 @@ def launch(input_group, input_structures,
     Script for distoring the cell shape for an input structure
     """
     if not dryrun:
-        structure_group = Group.get_or_create(
+        structure_group = Group.objects.get_or_create(
                              name=structure_group_name, description=structure_group_description)[0]
     else:
         structure_group = None

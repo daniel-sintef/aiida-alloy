@@ -297,11 +297,11 @@ def launch(code_node, structure_group_name, workchain_group_name,
 
     # setup parameters
     code = load_node(code_node)
-    workchain_group = Group.get_or_create(name=workchain_group_name)[0]
+    workchain_group = Group.objects.get_or_create(name=workchain_group_name)[0]
     base_parameter = load_node(base_parameter_node)
 
     if structure_node:
-        structure_group = Group.get_or_create(name=structure_group_name)[0]
+        structure_group = Group.objects.get_or_create(name=structure_group_name)[0]
         input_structure = load_node(structure_node)
         if not isinstance(input_structure, StructureData):
             raise Exception("structure node was not a StructureData")

@@ -30,7 +30,7 @@ def launch(dataset_path, group_name, group_description,
     print("loading dataset: {} to group: {}".format(dataset_path, group_name))
 
     # Setup/Retrieve the Group
-    g = Group.get_or_create(name=group_name, description=group_description)[0]
+    g = Group.objects.get_or_create(name=group_name, description=group_description)[0]
     # Loop over structures in the dataset_path, storing the nodes then adding them to the group
     i = 0
     while True:

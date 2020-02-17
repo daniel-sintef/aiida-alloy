@@ -27,7 +27,7 @@ def launch(phonopy_basedir, structure_group_name, structure_group_description, d
 
     print("loading dataset: {} to group: {}".format(phonopy_basedir, structure_group_name))
     # Setup/Retrieve the Group
-    structure_group = Group.get_or_create(name=structure_group_name,
+    structure_group = Group.objects.get_or_create(name=structure_group_name,
                             description=structure_group_description)[0]
 
     #Loop all relevant phonopy dirs

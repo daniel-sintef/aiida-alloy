@@ -56,7 +56,7 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
     a set of structures with varying vacuum thickness
     """
     if not dryrun:
-        structure_group = Group.get_or_create(
+        structure_group = Group.objects.get_or_create(
                              name=structure_group_name, description=structure_group_description)[0]
     else:
         structure_group = None

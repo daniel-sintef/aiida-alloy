@@ -73,7 +73,7 @@ def launch(matrix_elements, lattice_sizes, concentrations,
     Script for generating random FCC supercells, where the matrix elements 
     """
     if not dryrun:
-        structure_group = Group.get_or_create(
+        structure_group = Group.objects.get_or_create(
                              name=structure_group_name, description=structure_group_description)[0]
     else:
         structure_group = None
