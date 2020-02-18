@@ -5,7 +5,7 @@ import ase.build
 import json
 import os
 import aiida
-aiida.try_load_dbenv()
+aiida.load_profile()
 from aiida.orm import QueryBuilder
 from aiida.orm import Node, Group
 from aiida.orm import load_node

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import aiida
-aiida.try_load_dbenv()
+aiida.load_profile()
 from aiida.common import constants
 from aiida_create_solutesupercell_structures import *
 from aiida.orm import Node

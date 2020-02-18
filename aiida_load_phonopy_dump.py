@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import aiida
-aiida.try_load_dbenv()
+aiida.load_profile()
 
 import click
 import ase

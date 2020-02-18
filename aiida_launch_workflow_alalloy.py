@@ -4,7 +4,7 @@ import time
 import sys
 
 import aiida
-aiida.try_load_dbenv()
+aiida.load_profile()
 from aiida.engine.workfunctions import workfunction
 from aiida.orm import Dict
 
