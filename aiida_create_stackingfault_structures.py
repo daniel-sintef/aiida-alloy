@@ -86,7 +86,7 @@ def get_layer_frame(structure, miller_index):
               help="Place one solute at the midpoint (test) of the SF")
 @click.option('-rsl', '--refsolute', is_flag=True,
               help="Place one solute at the origin of an undistorted slab with size of a SF")
-@click.option('-sg', '--structure_group_name', required=True,
+@click.option('-sg', '--structure_group_label', required=True,
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
               help="Description for output AiiDA group")
@@ -97,7 +97,7 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
            periodic_xrepeats, periodic_yrepeats, periodic_zrepeats,
            displacement_x, displacement_y, special_pointsonly,
            primitive, solute_elements, maxsolute_layer, testsolute_layer,
-           refsolute, structure_group_name, structure_group_description,
+           refsolute, structure_group_label, structure_group_description,
            dryrun):
     """
     Script for creating stacking fault structures for a given size and matrix element. Generates
@@ -107,7 +107,7 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
     STABLE_STACKING_NAME = 'stable_stacking'
     if not dryrun:
         structure_group = Group.objects.get_or_create(
-                             name=structure_group_name, description=structure_group_description)[0]
+                             label=structure_group_label, description=structure_group_description)[0]
     else:
         structure_group = None
 

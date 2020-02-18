@@ -12,13 +12,6 @@ import random
 from aiida.orm import QueryBuilder
 from aiida.orm.utils import load_node
 
-def get_allstructures_fromgroup(group_name):
-    qb = QueryBuilder()
-    qb.append(Group, filters={'name': group_name}, tag='g')
-    qb.append(StructureData, tag='job', member_of='g')
-    all_nodes = [x[0] for x in qb.all()]
-    return all_nodes
-
 def get_smallestcellindex(ase_structure):
     smallest_cellnorm = np.linalg.norm(ase_structure.cell[0])
     smallest_index = 0
@@ -73,7 +66,7 @@ def get_unique_sites(structure_ase):
               " E.g. Mg,Si,Cu. Can specify the creation of a vacancy using 'Vac'")
 @click.option('-sc', '--structure_comments', default="",
               help="Comment to be added to the extras")
-@click.option('-sg', '--structure_group_name', required=True,
+@click.option('-sg', '--structure_group_label', required=True,
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
               help="Description for output AiiDA group")
@@ -81,7 +74,7 @@ def get_unique_sites(structure_ase):
               help="Prints structures and extras but does not store anything")
 def launch(input_group, input_structures,
            target_supercellsize,  solute_elements,
-           structure_comments, structure_group_name,
+           structure_comments, structure_group_label,
            structure_group_description,
            dryrun):
     """
@@ -89,7 +82,7 @@ def launch(input_group, input_structures,
     """
     if not dryrun:
         structure_group = Group.objects.get_or_create(
-                             name=structure_group_name, description=structure_group_description)[0]
+                             label=structure_group_label, description=structure_group_description)[0]
     else:
         structure_group = None
 

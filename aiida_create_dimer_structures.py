@@ -35,7 +35,7 @@ def get_displacements_array(displacement):
               " E.g. Mg,Si,Cu. Can specify the creation of a vacancy using 'Vac'"
               " NOTE: will not generate symmetrically equivalent structures."
               " E.g. if Mg-Si dimer has been generated the script will skip Si-Mg")
-@click.option('-sg', '--structure_group_name', required=True,
+@click.option('-sg', '--structure_group_label', required=True,
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
               help="Description for output AiiDA group")
@@ -43,7 +43,7 @@ def get_displacements_array(displacement):
               help="Prints structures and extras but does not store anything")
 def launch(box_size, dimer_separation,
            firstdimer_elements, seconddimer_elements,
-           structure_group_name, structure_group_description,
+           structure_group_label, structure_group_description,
            dryrun):
     """
     Script for creating surface structures for a given size and matrix element. Generates
@@ -51,7 +51,7 @@ def launch(box_size, dimer_separation,
     """
     if not dryrun:
         structure_group = Group.objects.get_or_create(
-                             name=structure_group_name, description=structure_group_description)[0]
+                             label=structure_group_label, description=structure_group_description)[0]
     else:
         structure_group = None
 

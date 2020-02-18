@@ -12,22 +12,22 @@ from aiida_create_solutesupercell_structures import *
 @click.command()
 @click.option('-od', '--oqmd_dumpdir', required=True,
                help="path to a directory containing a dump of OQMD entries")
-@click.option('-sg', '--structure_group_name', required=True,
+@click.option('-sg', '--structure_group_label', required=True,
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
               help="Description for output AiiDA group")
 @click.option('-dr', '--dryrun', is_flag=True,
               help="Prints structures and extras but does not store anything")
-def launch(oqmd_dumpdir, structure_group_name, structure_group_description, dryrun):
+def launch(oqmd_dumpdir, structure_group_label, structure_group_description, dryrun):
     """
     Load an 'OQMD' dump (created by an custom script). Expects a directory containing a set
     of OQMD_<ID> vasp-formatted POSCAR, and for each of these a corresponding OQMD_<ID>.json
     json file wich contains a dump of the meta-data
     """
 
-    print("loading dataset: {} to group: {}".format(oqmd_dumpdir, structure_group_name))
+    print("loading dataset: {} to group: {}".format(oqmd_dumpdir, structure_group_label))
     # Setup/Retrieve the Group
-    structure_group = Group.objects.get_or_create(name=structure_group_name,
+    structure_group = Group.objects.get_or_create(label=structure_group_label,
                             description=structure_group_description)[0]
 
     oqmd_dumpfiles = glob.glob(oqmd_dumpdir+'/*')

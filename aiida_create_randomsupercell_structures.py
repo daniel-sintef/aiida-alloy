@@ -59,7 +59,7 @@ def get_averaged_lattice(lattices, concentrations):
               help="Number of samples to generate")
 @click.option('-spsh', '--supercell_shape', required=True,
               help="shape of the supercell to use, format: Nx,Ny,Nz")
-@click.option('-sg', '--structure_group_name', required=True,
+@click.option('-sg', '--structure_group_label', required=True,
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
               help="Description for output AiiDA group")
@@ -67,14 +67,14 @@ def get_averaged_lattice(lattices, concentrations):
               help="Prints structures and extras but does not store anything")
 def launch(matrix_elements, lattice_sizes, concentrations,
            random_displacement, number_samples, supercell_shape,
-           structure_group_name, structure_group_description,
+           structure_group_label, structure_group_description,
            dryrun):
     """
     Script for generating random FCC supercells, where the matrix elements 
     """
     if not dryrun:
         structure_group = Group.objects.get_or_create(
-                             name=structure_group_name, description=structure_group_description)[0]
+                             label=structure_group_label, description=structure_group_description)[0]
     else:
         structure_group = None
 

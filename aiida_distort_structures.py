@@ -105,7 +105,7 @@ def get_strained_structures(equilibrium_structure, norm_strains,
               help="Comment to be added to the extras")
 @click.option('-ucs', '--use_conventional_structure', is_flag=True,
               help='Turns the input structure to its pymatgen conventional form prior to running')
-@click.option('-sg', '--structure_group_name', required=True,
+@click.option('-sg', '--structure_group_label', required=True,
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
               help="Description for output AiiDA group")
@@ -116,14 +116,14 @@ def launch(input_group, input_structures, repeat_expansion,
            random_displacement,
            number_randomized_samples, max_atoms, structure_comments,
            use_conventional_structure,
-           structure_group_name, structure_group_description,
+           structure_group_label, structure_group_description,
            dryrun):
     """
     Script for distoring the cell shape for an input structure
     """
     if not dryrun:
         structure_group = Group.objects.get_or_create(
-                             name=structure_group_name,
+                             label=structure_group_label,
                              description=structure_group_description)[0]
     else:
         structure_group = None

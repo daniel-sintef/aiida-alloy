@@ -41,7 +41,7 @@ def get_displacements_array(displacement):
               help="The thickness of the vacuum in Ang"
                    "The notation is: "
                    "start,end,increment or displacement_value.")
-@click.option('-sg', '--structure_group_name', required=True,
+@click.option('-sg', '--structure_group_label', required=True,
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
               help="Description for output AiiDA group")
@@ -49,7 +49,7 @@ def get_displacements_array(displacement):
               help="Prints structures and extras but does not store anything")
 def launch(lattice_size, matrix_element, lattice_and_surface,
            periodic_xrepeats, periodic_yrepeats, periodic_zrepeats, vacuum_thickness,
-           structure_group_name, structure_group_description,
+           structure_group_label, structure_group_description,
            dryrun):
     """
     Script for creating surface structures for a given size and matrix element. Generates
@@ -57,7 +57,7 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
     """
     if not dryrun:
         structure_group = Group.objects.get_or_create(
-                             name=structure_group_name, description=structure_group_description)[0]
+                             label=structure_group_label, description=structure_group_description)[0]
     else:
         structure_group = None
 

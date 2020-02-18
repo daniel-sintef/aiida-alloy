@@ -20,7 +20,7 @@ import itertools
               help="element to be used as the matrix")
 @click.option('-te', '--triplet_elements', required=True,
               help="elements to be used for the solute triplets")
-@click.option('-sg', '--structure_group_name', required=True,
+@click.option('-sg', '--structure_group_label', required=True,
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
               help="Description for output AiiDA group")
@@ -28,14 +28,14 @@ import itertools
               help="Prints structures and extras but does not store anything")
 def launch(lattice_size, supercell_shape, matrix_element,
            triplet_elements,
-           structure_group_name, structure_group_description,
+           structure_group_label, structure_group_description,
            dryrun):
     """
     Script for generating solute triplets 
     """
     if not dryrun:
         structure_group = Group.objects.get_or_create(
-                             name=structure_group_name, description=structure_group_description)[0]
+                             label=structure_group_label, description=structure_group_description)[0]
     else:
         structure_group = None
 

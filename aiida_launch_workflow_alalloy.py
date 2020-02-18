@@ -9,7 +9,7 @@ from aiida.engine.workfunctions import workfunction
 from aiida.orm import Dict
 
 
-def retrieve_alluncalculated_structures(structure_group_name,
+def retrieve_alluncalculated_structures(structure_group_label,
                                         workchain_group_name=None):
     from aiida.orm import Group
     from aiida.orm import StructureData
@@ -17,7 +17,7 @@ def retrieve_alluncalculated_structures(structure_group_name,
     from aiida.orm import QueryBuilder
 
     sqb = QueryBuilder()
-    sqb.append(Group, filters={'name': structure_group_name}, tag='g')
+    sqb.append(Group, filters={'name': structure_group_label}, tag='g')
     sqb.append(StructureData, project='id', tag='s', member_of='g')
     sqb.append(WorkCalculation, tag='job', descendant_of='s')
 
@@ -30,7 +30,7 @@ def retrieve_alluncalculated_structures(structure_group_name,
 
     # # Now the main query:
     qb = QueryBuilder()
-    qb.append(Group, filters={'name': structure_group_name}, tag='g')
+    qb.append(Group, filters={'name': structure_group_label}, tag='g')
     qb.append(StructureData, project='*', tag='s', member_of='g',
               filters={'id': {'!in': ids_dealt_with}})  # filter out calculated '!in' for not in
 
@@ -214,7 +214,7 @@ def wf_delete_vccards(parameter):
 @click.command()
 @click.option('-c', '--code_node', required=True,
               help="node of code to use")
-@click.option('-sg', '--structure_group_name', required=True,
+@click.option('-sg', '--structure_group_label', required=True,
               help='input group of structures to submit workchains on')
 @click.option('-wg', '--workchain_group_name', required=True,
               help='output group of workchains')
@@ -274,7 +274,7 @@ def wf_delete_vccards(parameter):
 @click.option('-rdb', '--run_debug', is_flag=True,
               help='run the script in debug mode. runs first calc then exitsj'
                    ' and does not attach the output to the workchain_group')
-def launch(code_node, structure_group_name, workchain_group_name,
+def launch(code_node, structure_group_label, workchain_group_name,
            structure_node, base_parameter_node,
            pseudo_familyname, kptper_recipang,
            nume2bnd_ratio, press_conv_thr,
@@ -301,22 +301,22 @@ def launch(code_node, structure_group_name, workchain_group_name,
     base_parameter = load_node(base_parameter_node)
 
     if structure_node:
-        structure_group = Group.objects.get_or_create(name=structure_group_name)[0]
+        structure_group = Group.objects.get_or_create(label=structure_group_label)[0]
         input_structure = load_node(structure_node)
         if not isinstance(input_structure, StructureData):
             raise Exception("structure node was not a StructureData")
         structure_group.add_nodes([input_structure])
 
     # Load all the structures in the structure group, not-yet run in workchain_group_name
-    structure_group = Group.get_from_string(structure_group_name)
+    structure_group = Group.get_from_string(structure_group_label)
     uncalculated_structures = retrieve_alluncalculated_structures(
-                                structure_group_name,
+                                structure_group_label,
                                 workchain_group_name=workchain_group_name
     )
 
     if len(uncalculated_structures) == 0:
         print(("All structures in {} already have associated workchains in "
-              "the group {}".format(structure_group_name, workchain_group_name)))
+              "the group {}".format(structure_group_label, workchain_group_name)))
         sys.exit()
 
     # determine number of calculations to submit
