@@ -11,7 +11,7 @@ from aiida.orm import Node, Group
 from aiida.orm import load_node
 
 def get_structurenode_metadict(structure_node):
-    meta_dict = structure_node.get_extras()
+    meta_dict = structure_node.extras
     meta_dict['uuid'] = structure_node.uuid
     return meta_dict
 

@@ -154,7 +154,7 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
     elif customstructure_node:
         custom_structure = load_node(customstructure_node)
         undistorted_structure = custom_structure.get_ase()
-        extras = custom_structure.get_extras()
+        extras = custom_structure.extras
         if '_aiida_hash' in extras:
             del extras['_aiida_hash']
         extras['inputstructure_uuid'] = custom_structure.uuid

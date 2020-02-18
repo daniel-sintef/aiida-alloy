@@ -10,8 +10,8 @@ import click
 
 def add_parentstructure_extras(structurenode, parent_uuid):
     # NOTE: consider adding a check if parent_extras is already assigned
-    structure_extras = structurenode.get_extras()
-    parent_extras = load_node(parent_uuid).get_extras()
+    structure_extras = structurenode.extras
+    parent_extras = load_node(parent_uuid).extras
     for key, value in list(parent_extras.items()):
         if key not in structure_extras:
             structurenode.set_extra(key, value)
