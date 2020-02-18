@@ -26,9 +26,9 @@ def export_structure_node(structure_node, output_path, ase_format='vasp'):
         json.dump(meta_dict, fp)
     return
 
-def get_allnodes_fromgroup(group_name):
+def get_allnodes_fromgroup(group_label):
     qb = QueryBuilder()
-    qb.append(Group, filters={'name': group_name}, tag='g')
+    qb.append(Group, filters={'label': group_label}, tag='g')
     qb.append(Node, tag='job', with_group='g')
     all_nodes = [x[0] for x in qb.all()]
     return all_nodes
@@ -36,11 +36,11 @@ def get_allnodes_fromgroup(group_name):
 @click.command()
 @click.option('-od', '--output_dir', required=True
          , help="Directory to dump output files")
-@click.option('-gn', '--group_name',default=None,
-              type=str, help="Group to export identified by name")
+@click.option('-gn', '--group_label',default=None,
+              type=str, help="Group to export identified by label")
 @click.option('-u', '--uuid', default=None,
               type=str, help="Structure to export by uuid")
-def createjob(output_dir, group_name, uuid):
+def createjob(output_dir, group_label, uuid):
     '''
     Dumps the contents of an AiiDA group into a directory. Creates a set of
     VASP-poscar files with the name AIIDA_<AiiDA-pk> for each of
@@ -52,12 +52,12 @@ def createjob(output_dir, group_name, uuid):
     except Exception:
         pass
 
-    if group_name is not None:
-        all_entries = get_allnodes_fromgroup(group_name)
+    if group_label is not None:
+        all_entries = get_allnodes_fromgroup(group_label)
     elif uuid:
         all_entries = [load_node(uuid)]
     else:
-        raise Exception("You must provide either group_name or uuid")
+        raise Exception("You must provide either group_label or uuid")
 
     for structure_node in all_entries:
         base_filename = "AIIDA_{}".format(structure_node.pk)
@@ -70,7 +70,7 @@ def createjob(output_dir, group_name, uuid):
             export_structure_node(structure_node, output_path)
         except Exception:
             print(("Failed to parse {}".format(structure_node)))
-            fail_dict = get_metadict_from_oqmdentry(structure_node)
+            fail_dict = get_structurenode_metadict(structure_node)
             with open(output_path+'.EXPORT_FAIL', 'w') as fp:
                 json.dump(fail_dict, fp)
 

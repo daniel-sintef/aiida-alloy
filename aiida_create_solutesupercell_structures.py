@@ -76,7 +76,7 @@ def return_nn_distanceAndIndex(ase_supercell):
     return nn_distanceindex_frame
 
 
-def get_all_asestrcture_from_structuregroup(structure_group):
+def get_allstructures_fromgroup(structure_group):
     from aiida.orm import Group
     from aiida.orm import StructureData
     from aiida.orm import QueryBuilder
@@ -98,7 +98,7 @@ def checkif_structure_alreadyin_group(structure_tocheck, structure_group):
     # pull the list of all structures in the group but only once per execution
     global GROUP_STRUCTURE_LIST
     if len(GROUP_STRUCTURE_LIST) == 0:
-        GROUP_STRUCTURE_LIST = get_all_asestrcture_from_structuregroup(structure_group)
+        GROUP_STRUCTURE_LIST = get_allstructures_fromgroup(structure_group)
 
     for existing_structure in GROUP_STRUCTURE_LIST:
         if structure_tocheck.get_chemical_formula() == existing_structure.get_chemical_formula():
