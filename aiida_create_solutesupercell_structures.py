@@ -79,16 +79,15 @@ def return_nn_distanceAndIndex(ase_supercell):
 def get_all_asestrcture_from_structuregroup(structure_group):
     from aiida.orm import Group
     from aiida.orm import StructureData
-    from aiida.orm.calculation import WorkCalculation
-    from aiida.orm.querybuilder import QueryBuilder
+    from aiida.orm import QueryBuilder
 
     if structure_group:
-        structure_group_name = structure_group.name
+        structure_group_label = structure_group.label
     else:
         return []
 
     sqb = QueryBuilder()
-    sqb.append(Group, filters={'name': structure_group_name}, tag='g')
+    sqb.append(Group, filters={'label': structure_group_label}, tag='g')
     sqb.append(StructureData, member_of='g')
 
     res = [x[0].get_ase() for x in sqb.all()]
@@ -179,7 +178,7 @@ def store_asestructure(ase_structure, extras, structure_group, dryrun):
               " E.g. Mg,Si,Cu. Can specify the creation of a vacancy using 'Vac'"
               " NOTE: will not generate symmetrically equivalent structures."
               " E.g. if Mg-Si solute solutes have been generated the script will skip Si-Mg")
-@click.option('-sg', '--structure_group_name', required=True,
+@click.option('-sg', '--structure_group_label', required=True,
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
               help="Description for output AiiDA group")
@@ -194,7 +193,7 @@ def store_asestructure(ase_structure, extras, structure_group, dryrun):
 def launch(lattice_size,
            supercell_shape, matrix_element,
            firstsolute_elements, secondsolute_elements,
-           structure_group_name, structure_group_description, single_solute_only,
+           structure_group_label, structure_group_description, single_solute_only,
            maximum_nn_index, maximum_nn_distance, dryrun):
     """
     Script for creating supercells of a given size and matrix element (currently only FCC
@@ -220,7 +219,7 @@ def launch(lattice_size,
 
     if not dryrun:
         structure_group = Group.objects.get_or_create(
-                             name=structure_group_name,
+                             label=structure_group_label,
                              description=structure_group_description)[0]
     else:
         structure_group = None

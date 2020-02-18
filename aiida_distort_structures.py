@@ -9,7 +9,7 @@ import ase.build
 import click
 import numpy as np
 import random
-from aiida.orm.querybuilder import QueryBuilder
+from aiida.orm import QueryBuilder
 from aiida.orm.utils import load_node
 
 def get_allstructures_fromgroup(group_name):

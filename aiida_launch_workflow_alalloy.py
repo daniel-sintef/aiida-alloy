@@ -14,7 +14,7 @@ def retrieve_alluncalculated_structures(structure_group_name,
     from aiida.orm import Group
     from aiida.orm import StructureData
     from aiida.orm.calculation import WorkCalculation
-    from aiida.orm.querybuilder import QueryBuilder
+    from aiida.orm import QueryBuilder
 
     sqb = QueryBuilder()
     sqb.append(Group, filters={'name': structure_group_name}, tag='g')
@@ -38,7 +38,7 @@ def retrieve_alluncalculated_structures(structure_group_name,
     return res
 
 def retrieve_numactive_calculations():
-    from aiida.orm.querybuilder import QueryBuilder
+    from aiida.orm import QueryBuilder
     from aiida.orm import WorkCalculation
     qb = QueryBuilder()
     qb.append(WorkCalculation,
@@ -48,7 +48,7 @@ def retrieve_numactive_calculations():
     return len(qb.all())
 
 def retrieve_numactive_elastic():
-    from aiida.orm.querybuilder import QueryBuilder
+    from aiida.orm import QueryBuilder
     from aiida.orm import WorkCalculation
     qb = QueryBuilder()
     qb.append(WorkCalculation,

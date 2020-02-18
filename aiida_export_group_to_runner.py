@@ -5,7 +5,7 @@ aiida.try_load_dbenv()
 from aiida.common import constants
 from aiida_create_solutesupercell_structures import *
 from aiida.orm import Node
-from aiida.orm.querybuilder import QueryBuilder
+from aiida.orm import QueryBuilder
 from aiida.orm import Calculation, Group, WorkCalculation
 from aiida.orm import StructureData
 from aiida.orm.nodes.data.array.trajectory import TrajectoryData
