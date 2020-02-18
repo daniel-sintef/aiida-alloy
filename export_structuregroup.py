@@ -29,7 +29,7 @@ def export_structure_node(structure_node, output_path, ase_format='vasp'):
 def get_allnodes_fromgroup(group_name):
     qb = QueryBuilder()
     qb.append(Group, filters={'name': group_name}, tag='g')
-    qb.append(Node, tag='job', member_of='g')
+    qb.append(Node, tag='job', with_group='g')
     all_nodes = [x[0] for x in qb.all()]
     return all_nodes
 

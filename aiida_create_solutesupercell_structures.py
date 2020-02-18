@@ -88,7 +88,7 @@ def get_all_asestrcture_from_structuregroup(structure_group):
 
     sqb = QueryBuilder()
     sqb.append(Group, filters={'label': structure_group_label}, tag='g')
-    sqb.append(StructureData, member_of='g')
+    sqb.append(StructureData, with_group='g')
 
     res = [x[0].get_ase() for x in sqb.all()]
     return res

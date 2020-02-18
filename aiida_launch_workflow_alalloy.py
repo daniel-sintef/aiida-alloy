@@ -18,7 +18,7 @@ def retrieve_alluncalculated_structures(structure_group_label,
 
     sqb = QueryBuilder()
     sqb.append(Group, filters={'name': structure_group_label}, tag='g')
-    sqb.append(StructureData, project='id', tag='s', member_of='g')
+    sqb.append(StructureData, project='id', tag='s', with_group='g')
     sqb.append(WorkCalculation, tag='job', descendant_of='s')
 
     filters = {}
@@ -31,7 +31,7 @@ def retrieve_alluncalculated_structures(structure_group_label,
     # # Now the main query:
     qb = QueryBuilder()
     qb.append(Group, filters={'name': structure_group_label}, tag='g')
-    qb.append(StructureData, project='*', tag='s', member_of='g',
+    qb.append(StructureData, project='*', tag='s', with_group='g',
               filters={'id': {'!in': ids_dealt_with}})  # filter out calculated '!in' for not in
 
     res = [x[0] for x in qb.all()]

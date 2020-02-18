@@ -15,7 +15,7 @@ from aiida.orm.utils import load_node
 def get_allstructures_fromgroup(group_name):
     qb = QueryBuilder()
     qb.append(Group, filters={'name': group_name}, tag='g')
-    qb.append(StructureData, tag='job', member_of='g')
+    qb.append(StructureData, tag='job', with_group='g')
     all_nodes = [x[0] for x in qb.all()]
     return all_nodes
 
