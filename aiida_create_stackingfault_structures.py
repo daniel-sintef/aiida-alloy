@@ -15,7 +15,7 @@ import pandas as pd
 
 def get_displacements_array(displacement):
     if len(displacement.split(',')) == 3:
-       d_min,d_max,d_inc = displacement.split(',')
+       d_min,d_max,d_inc = [float(x) for x in displacement.split(',')
        if d_max > 1:
            print("WARNING: max displacement {} is larger than 1".format(displacement))
        displacements = np.arange(float(d_min),float(d_max),float(d_inc))
@@ -150,7 +150,9 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
                                           matrix_element,
                                           [xrepeats,yrepeats,zrepeats],
                                           orthogonal=orthogonal,
-                                          a=lattice_size)
+                                          a=lattice_size,
+                                          periodic=True,
+                                          )
     elif customstructure_node:
         custom_structure = load_node(customstructure_node)
         undistorted_structure = custom_structure.get_ase()

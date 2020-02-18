@@ -12,6 +12,22 @@ import random
 from aiida.orm import QueryBuilder
 from aiida.orm.utils import load_node
 
+def get_allstructurenodes_fromgroup(structure_group):
+    from aiida.orm import Group
+    from aiida.orm import StructureData
+    from aiida.orm import QueryBuilder
+
+    if structure_group:
+        structure_group_label = structure_group.label
+    else:
+        return []
+
+    sqb = QueryBuilder()
+    sqb.append(Group, filters={'label': structure_group_label}, tag='g')
+    sqb.append(StructureData, with_group='g')
+
+    return [x[0] for x in sqb.all()]
+
 def get_smallestcellindex(ase_structure):
     smallest_cellnorm = np.linalg.norm(ase_structure.cell[0])
     smallest_index = 0
@@ -55,7 +71,7 @@ def get_unique_sites(structure_ase):
 
 @click.command()
 @click.option('-in', '--input_group',
-              help='group containing structures to base randomization off of.')
+              help='group containing structures to base antisites off of.')
 @click.option('-is', '--input_structures',
               help='A comma-seprated list of nodes/uuid to import')
 @click.option('-tss', '--target_supercellsize', default=None,
@@ -82,12 +98,14 @@ def launch(input_group, input_structures,
     """
     if not dryrun:
         structure_group = Group.objects.get_or_create(
-                             label=structure_group_label, description=structure_group_description)[0]
+                             label=structure_group_label,
+                             description=structure_group_description)[0]
     else:
         structure_group = None
 
     if input_group:
-        structure_nodes = get_allstructures_fromgroup(input_group)
+        input_group = Group(input_group)
+        structure_nodes = get_allstructurenodes_fromgroup(input_group)
     elif input_structures:
         input_structures = input_structures.split(',')
         structure_nodes = [load_node(x) for x in input_structures]

@@ -82,7 +82,9 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
                                           2*periodic_yrepeats,
                                           3*periodic_zrepeats],
                                           orthogonal=True,
-                                          a=lattice_size)
+                                          a=lattice_size,
+                                          periodic=True,
+                                          )
        extras['x_direction']  = '<112>'
        extras['y_direction']  = '<110>'
        extras['z_direction']  = '<111>'
@@ -92,7 +94,9 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
                                            [periodic_xrepeats,
                                             periodic_yrepeats,
                                           2*periodic_zrepeats],
-                                          a=lattice_size)
+                                          a=lattice_size,
+                                          periodic=True,
+                                          )
        extras['x_direction']  = '<100>'
        extras['y_direction']  = '<1-10>'
        extras['z_direction']  = '<110>'
@@ -102,7 +106,9 @@ def launch(lattice_size, matrix_element, lattice_and_surface,
                                            [periodic_xrepeats,
                                             periodic_yrepeats,
                                           2*periodic_zrepeats],
-                                          a=lattice_size)
+                                          a=lattice_size,
+                                          periodic=True,
+                                          )
        extras['x_direction']  = '<100>'
        extras['y_direction']  = '<010>'
        extras['z_direction']  = '<001>'
