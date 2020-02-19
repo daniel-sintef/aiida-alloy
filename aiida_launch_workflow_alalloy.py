@@ -5,32 +5,32 @@ import sys
 
 import aiida
 aiida.load_profile()
-from aiida.engine.workfunctions import workfunction
+from aiida.engine import workfunction
 from aiida.orm import Dict
 
 
 def retrieve_alluncalculated_structures(structure_group_label,
-                                        workchain_group_name=None):
+                                        workchain_group_label=None):
     from aiida.orm import Group
     from aiida.orm import StructureData
-    from aiida.orm.calculation import WorkCalculation
+    from aiida.orm import CalcJobNode
     from aiida.orm import QueryBuilder
 
     sqb = QueryBuilder()
-    sqb.append(Group, filters={'name': structure_group_label}, tag='g')
+    sqb.append(Group, filters={'label': structure_group_label}, tag='g')
     sqb.append(StructureData, project='id', tag='s', with_group='g')
-    sqb.append(WorkCalculation, tag='job', descendant_of='s')
+    sqb.append(CalcJobNode, tag='job', with_descendants='s')
 
     filters = {}
-    if workchain_group_name:
-        filters = {'name': workchain_group_name}
-    sqb.append(Group, group_of='job', filters=filters)
+    if workchain_group_label:
+        filters = {'label': workchain_group_label}
+    sqb.append(Group, with_node='job', filters=filters)
 
     ids_dealt_with = [_ for _, in sqb.distinct().all()] or [-1]  # prevent empty list
 
     # # Now the main query:
     qb = QueryBuilder()
-    qb.append(Group, filters={'name': structure_group_label}, tag='g')
+    qb.append(Group, filters={'label': structure_group_label}, tag='g')
     qb.append(StructureData, project='*', tag='s', with_group='g',
               filters={'id': {'!in': ids_dealt_with}})  # filter out calculated '!in' for not in
 
@@ -39,9 +39,9 @@ def retrieve_alluncalculated_structures(structure_group_label,
 
 def retrieve_numactive_calculations():
     from aiida.orm import QueryBuilder
-    from aiida.orm import WorkCalculation
+    from aiida.orm import CalcJobNode
     qb = QueryBuilder()
-    qb.append(WorkCalculation,
+    qb.append(CalcJobNode,
               filters={'attributes.process_state':
                        {'!in': ['finished', 'excepted', 'killed']}}
     )
@@ -49,9 +49,9 @@ def retrieve_numactive_calculations():
 
 def retrieve_numactive_elastic():
     from aiida.orm import QueryBuilder
-    from aiida.orm import WorkCalculation
+    from aiida.orm import CalcJobNode
     qb = QueryBuilder()
-    qb.append(WorkCalculation,
+    qb.append(CalcJobNode,
               filters={'attributes.process_state':
                        {'!in': ['finished', 'excepted', 'killed']},
                        'attributes._process_label':'ElasticWorkChain'}
@@ -61,22 +61,24 @@ def retrieve_numactive_elastic():
 
 def get_numelectrons_structure_upffamily(structure, pseudos):
 
-    def parse_numelectrons_upfpath(upfpath):
-        for line in open(upfpath):
+    def parse_numelectrons_upfdata(upfdata):
+        upfcontent = upfdata.get_content().split('\n')
+        for line in upfcontent:
             if "valence" in line.lower() and "z" in line.lower():
                 if len(line.split("=")) == 2:
                     num_e = int(float((line.split("=")[-1].strip().strip('"'))))
                 elif len(line.split()) == 3:
                     num_e = int(float(line.split()[0]))
                 else:
-                    raise Exception("Could not parse {}".format(upfpath))
+                    raise Exception("Could not parse {}".format(upfdata))
         return num_e
 
     def build_upf_numelectrons_dict(structure_ase, pseudos):
         element_nume_dict = {}
         for element in set(structure_ase.get_chemical_symbols()):
-            upfpath = pseudos[element].get_file_abs_path()
-            element_nume_dict[element] = parse_numelectrons_upfpath(upfpath)
+            print(pseudos[element])
+            upfdata = pseudos[element]
+            element_nume_dict[element] = parse_numelectrons_upfdata(upfdata)
         return element_nume_dict
 
     structure_ase = structure.get_ase()
@@ -126,8 +128,12 @@ def get_nk(num_machines, code):
     nk = str(max(4, int(num_machines/2)))  # adhoc guess
 
     # check if our choice is valid
-    computer = code.get_computer()
+    computer = code.computer
     ppm = computer.get_default_mpiprocs_per_machine()
+    # if a local computer we set nk = 1
+    if ppm == 1:
+       nk = str(1)
+       return nk
     nump = num_machines * ppm
     if not nk_nump_evenlydivisible(nk, nump):
         raise Exception("Error number processors: {} "
@@ -135,7 +141,6 @@ def get_nk(num_machines, code):
 
     return nk
 
-@workfunction
 def wf_getconventionalstructure(structuredata):
     '''
     Standardize an AiiDA StructureData object via pymatgen Structure
@@ -153,10 +158,8 @@ def wf_getconventionalstructure(structuredata):
     return standard_structuredata
 
 
-
-@workfunction
 def wf_getkpoints(aiida_structure, kptper_recipang):
-    from aiida.orm.nodes.data.array.kpoints import KpointsData
+    from aiida.orm import KpointsData
 
     def get_kmeshfrom_kptper_recipang(aiida_structure, kptper_recipang):
         import numpy as np
@@ -169,15 +172,15 @@ def wf_getkpoints(aiida_structure, kptper_recipang):
         return kmesh
 
     kpoints_mesh = get_kmeshfrom_kptper_recipang(aiida_structure, kptper_recipang)
-    kpoints = KpointsData(kpoints_mesh=kpoints_mesh)
+    kpoints = KpointsData()
+    kpoints.set_kpoints_mesh(kpoints_mesh)
 
     return kpoints
 
 
-@workfunction
 def wf_setupparams(base_parameter, structure,
                    pseudo_familyname, nume2bnd_ratio,
-                   additional_parameter):
+                   cellpress_parameter):
         from aiida.orm.nodes.data.upf import get_pseudos_from_structure
 
         import collections
@@ -196,13 +199,12 @@ def wf_setupparams(base_parameter, structure,
         parameter_dict = base_parameter.get_dict()
         parameter_dict['SYSTEM']['nbnd'] = nbnd
 
-        additional_dict = additional_parameter.get_dict()
-        parameter_dict.update(additional_dict)
+        cellpress_dict = cellpress_parameter.get_dict()
+        parameter_dict.update(cellpress_dict)
         parameters = Dict(dict=parameter_dict)
 
         return parameters
 
-@workfunction
 def wf_delete_vccards(parameter):
     new_dict = parameter.get_dict()
     if 'CELL' in new_dict:
@@ -216,7 +218,7 @@ def wf_delete_vccards(parameter):
               help="node of code to use")
 @click.option('-sg', '--structure_group_label', required=True,
               help='input group of structures to submit workchains on')
-@click.option('-wg', '--workchain_group_name', required=True,
+@click.option('-wg', '--workchain_group_label', required=True,
               help='output group of workchains')
 @click.option('-sn', '--structure_node',
               help='structure node to submit workchains on.'
@@ -274,7 +276,7 @@ def wf_delete_vccards(parameter):
 @click.option('-rdb', '--run_debug', is_flag=True,
               help='run the script in debug mode. runs first calc then exitsj'
                    ' and does not attach the output to the workchain_group')
-def launch(code_node, structure_group_label, workchain_group_name,
+def launch(code_node, structure_group_label, workchain_group_label,
            structure_node, base_parameter_node,
            pseudo_familyname, kptper_recipang,
            nume2bnd_ratio, press_conv_thr,
@@ -285,19 +287,17 @@ def launch(code_node, structure_group_label, workchain_group_name,
            sleep_interval, z_movement_only, z_cellrelax_only,
            strain_magnitudes, use_all_strains,
            keep_workdir, dryrun, submit_debug, run_debug):
-    from aiida.orm import Group
-    from aiida.orm.utils import load_node, WorkflowFactory
-    from aiida.orm import Bool, Float, Int, Str, List
-    from aiida.orm import Dict 
-    from aiida.orm import StructureData 
-    from aiida.engine.launch import submit, run
+    from aiida.orm import Group, load_node
+    from aiida.orm import Bool, Dict, Float, List, Int, Str, StructureData
+    from aiida.engine import submit, run
+    from aiida.plugins.factories import WorkflowFactory
     # announce if running in debug mode
     if submit_debug:
         print("Running in debug mode!")
 
     # setup parameters
     code = load_node(code_node)
-    workchain_group = Group.objects.get_or_create(name=workchain_group_name)[0]
+    workchain_group = Group.objects.get_or_create(label=workchain_group_label)[0]
     base_parameter = load_node(base_parameter_node)
 
     if structure_node:
@@ -307,16 +307,16 @@ def launch(code_node, structure_group_label, workchain_group_name,
             raise Exception("structure node was not a StructureData")
         structure_group.add_nodes([input_structure])
 
-    # Load all the structures in the structure group, not-yet run in workchain_group_name
-    structure_group = Group.get_from_string(structure_group_label)
+    # Load all the structures in the structure group, not-yet run in workchain_group_label
+    structure_group = Group.get(label=structure_group_label)
     uncalculated_structures = retrieve_alluncalculated_structures(
                                 structure_group_label,
-                                workchain_group_name=workchain_group_name
+                                workchain_group_label=workchain_group_label
     )
 
     if len(uncalculated_structures) == 0:
         print(("All structures in {} already have associated workchains in "
-              "the group {}".format(structure_group_label, workchain_group_name)))
+              "the group {}".format(structure_group_label, workchain_group_label)))
         sys.exit()
 
     # determine number of calculations to submit
@@ -332,10 +332,12 @@ def launch(code_node, structure_group_label, workchain_group_name,
         if use_conventional_structure:
             structure = wf_getconventionalstructure(structure)
         print("Preparing to launch {}".format(structure))
-        print("calcs to submit: {} max calcs:{}".format(calcs_to_submit, max_active_calculations))
+        print("calcs to submit: {} max calcs:{}".format(calcs_to_submit,
+                                                        max_active_calculations))
 
         if len(structure.get_ase()) > max_atoms_submit:
-            print("{} has more atoms than the max allowed {}".format(structure, max_atoms_submit))
+            print("{} has more atoms than the max allowed {}".format(structure,
+                                                                     max_atoms_submit))
             print("If you wish to overide please use --max_atoms_submit")
             continue
 
@@ -361,24 +363,23 @@ def launch(code_node, structure_group_label, workchain_group_name,
         from timeit import default_timer as timer
         start = timer()
 
-        # add any additional parameters specified from cli
-        additional_dict = {}
+        # add any cell-related parameters specified from cli
+        if "CELL" in base_parameter.get_dict():
+            cellpress_dict = {"CELL":base_parameter.get_dict()["CELL"]}
+        else:
+            cellpress_dict = {}
         if press_conv_thr:
-            if "CELL" not in additional_dict:
-               additional_dict["CELL"] = {}
-            additional_dict["CELL"]["press_conv_thr"] = float(press_conv_thr)
+            cellpress_dict["CELL"]["press_conv_thr"] = float(press_conv_thr)
         if z_cellrelax_only:
-            if "CELL" not in additional_dict:
-               additional_dict["CELL"] = {}
-            additional_dict["CELL"]["cell_dofree"] = "z"
+            cellpress_dict["CELL"]["cell_dofree"] = "z"
 
         # determine number of bands & setup the parameters
-        additional_parameter = Dict(dict=additional_dict)
+        cellpress_parameter = Dict(dict=cellpress_dict)
         parameters = wf_setupparams(base_parameter,
                                     structure,
                                     Str(pseudo_familyname),
                                     Float(nume2bnd_ratio),
-                                    additional_parameter)
+                                    cellpress_parameter)
 
         # determine kpoint mesh & setup kpoints
         kpoints = wf_getkpoints(structure, Int(kptper_recipang))
@@ -405,7 +406,7 @@ def launch(code_node, structure_group_label, workchain_group_name,
             options_dict['resources']['num_machines'] = num_machines
             options_dict['max_wallclock_seconds'] = int(30*60)
             options_dict['queue_name'] = 'debug'
-        workchain_options = Dict(dict=options_dict)
+        workchain_options = options_dict
 
         if npools:
             nk = npools
@@ -426,42 +427,40 @@ def launch(code_node, structure_group_label, workchain_group_name,
         # setup inputs & submit workchain
         clean_workdir = not keep_workdir
         inputs = {
-                  'structure': structure,
-                  'settings': settings,
-                  'clean_workdir': Bool(clean_workdir)
+                  'clean_workdir': Bool(clean_workdir),
                   }
         base_inputs = {
+            'pw': {
                 'code': code,
-                'pseudo_family': Str(pseudo_familyname),
-                'kpoints': kpoints,
-                'parameters': parameters,
-                'options': workchain_options,
+                'parameters': wf_delete_vccards(parameters),
+                'metadata': {'options': workchain_options},
                 'settings': settings,
-                }
-        # For elastic workflows need to jump through hoops to get rid of CELL param
+            }
+        }
         relax_inputs = {
             'base': {k: base_inputs[k]  for k in base_inputs if k != 'parameters'},
             'relaxation_scheme': Str('relax'),
             'final_scf' : Bool(False),
             'meta_convergence' : Bool(False)
         }
-        relax_parameters = wf_delete_vccards(parameters)
-        relax_inputs['base']['parameters'] = relax_parameters
-        vcrelax_inputs = {
-            'base': base_inputs,
-            'relaxation_scheme': Str('vc-relax'),
-            'final_scf' : Bool(False),
-            'meta_convergence' : Bool(False)
-        }
         if calc_method == 'scf':
             WorkChain = WorkflowFactory('quantumespresso.pw.base')
             inputs.update(base_inputs)
-        elif calc_method == 'relax':
+            inputs['pw']['structure'] = structure
+            inputs['kpoints'] = kpoints
+            inputs['pseudo_family'] = Str(pseudo_familyname)
+        elif calc_method in ['relax', 'vc-relax']:
             WorkChain = WorkflowFactory('quantumespresso.pw.relax')
             inputs.update(relax_inputs)
-        elif calc_method == 'vc-relax':
-            WorkChain = WorkflowFactory('quantumespresso.pw.relax')
-            inputs.update(vcrelax_inputs)
+            inputs['structure'] = structure
+            inputs['base']['pseudo_family'] = Str(pseudo_familyname)
+            inputs['base']['kpoints'] = kpoints
+            if calc_method == 'relax':
+                inputs['relaxation_scheme'] = Str('relax')
+                parameters = wf_delete_vccards(parameters)
+            elif calc_method == 'vc-relax':
+                inputs['relaxation_scheme'] = Str('vc-relax')
+            inputs['base']['pw']['parameters'] = parameters
         elif calc_method == 'elastic':
             if submit_debug:
                 print("Using debug queue with elastic workchain is not advised!")
