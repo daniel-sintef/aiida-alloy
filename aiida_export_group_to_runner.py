@@ -1,15 +1,12 @@
 #!/usr/bin/env python
-
 import aiida
 aiida.load_profile()
-from aiida.common import constants
+from qe_tools import constants
 from aiida_create_solutesupercell_structures import *
-from aiida.orm import Node
-from aiida.orm import QueryBuilder
-from aiida.orm import Calculation, Group, WorkCalculation
-from aiida.orm import StructureData
-from aiida.orm.nodes.data.array.trajectory import TrajectoryData
-from aiida.orm.utils import load_node, WorkflowFactory
+from aiida.orm import load_node, Node, Group, QueryBuilder
+from aiida.plugins.factories import WorkflowFactory
+from aiida.orm import CalcJobNode, WorkChainNode
+from aiida.orm import StructureData, TrajectoryData
 import click
 from ase import Atoms
 from ase.io import write as ase_write
@@ -32,8 +29,9 @@ def get_allnodes_fromgroup(group_name):
 
 def get_outputcalcs(node):
     q = QueryBuilder()
-    q.append(WorkCalculation, filters={"uuid": node.uuid}, tag="worknode")
-    q.append(WorkCalculation, tag="worknode2", output_of="worknode", project=["id", "ctime",  "*"])
+    q.append(WorkChainNode, filters={"uuid": node.uuid}, tag="worknode")
+    q.append(WorkChainNode, tag="worknode2",
+             with_incoming="worknode", project=["id", "ctime",  "*"])
     q.order_by({"worknode2": "ctime"})
     child_nodes = [x[2] for x in q.all()]
     return child_nodes
@@ -99,8 +97,8 @@ def write_structure_torunner(fileout, structure_node, extra_comments={}):
 
 def get_timesorted_basenodes(relaxworknode):
     q = QueryBuilder()
-    q.append(WorkCalculation, filters={"uuid": relaxworknode.uuid}, tag="relaxworknode")
-    q.append(WorkCalculation, output_of="relaxworknode",
+    q.append(WorkChainNode, filters={"uuid": relaxworknode.uuid}, tag="relaxworknode")
+    q.append(WorkChainNode, with_incoming="relaxworknode",
              project=["id", "ctime",  "*"],  tag="calc")
     q.order_by({"calc": "ctime"})
     timesorted_scf = [x[2] for x in q.all()]
@@ -108,12 +106,13 @@ def get_timesorted_basenodes(relaxworknode):
 
 def get_timesorted_scfs(worknode, relax_worknode=False):
     q = QueryBuilder()
-    q.append(WorkCalculation, filters={"uuid": worknode.uuid}, tag="worknode")
+    q.append(WorkChainNode, filters={"uuid": worknode.uuid}, tag="worknode")
     output_tag = "worknode"
     if relax_worknode:
         output_tag = "worknode2"
-        q.append(WorkCalculation, tag=output_tag, output_of="worknode")
-    q.append(Calculation, output_of=output_tag, project=["id", "ctime",  "*"],  tag="calc")
+        q.append(WorkChainNode, tag=output_tag, with_incoming="worknode")
+    q.append( CalcJobNode,
+              with_incoming=output_tag, project=["id", "ctime",  "*"],  tag="calc")
     q.order_by({"calc": "ctime"})
     timesorted_scf = [x[2] for x in q.all()]
     return timesorted_scf
@@ -141,18 +140,22 @@ def write_pwbase_torunner(fileout, pwbasenode, extra_comments={}):
     return
 
 def get_relaxnode_calcoutputs(node):
-    from aiida_quantumespresso.calculations.pw import PwCalculation
     q = QueryBuilder()
-    q.append(WorkCalculation, filters={"uuid": node.uuid}, tag="worknode")
-    q.append(WorkCalculation, tag="worknode2", output_of="worknode")
-    q.append(PwCalculation, tag="pwcalc", output_of="worknode2", project=["id", "ctime",  "*"])
+    q.append(WorkChainNode, filters={"uuid": node.uuid}, tag="worknode")
+    q.append(WorkChainNode,
+             tag="worknode2",
+             with_incoming="worknode")
+    q.append(PwCalculation,
+             tag="pwcalc",
+             with_incoming="worknode2",
+             project=["id", "ctime",  "*"])
     q.order_by({"pwcalc": "ctime"})
     child_nodes = [x[2] for x in q.all()]
     return child_nodes
 
 def get_timesorted_values(relax_node, arrayname, np_concatenate=True,
                           check_outputparams=False):
-    # check_outputparams because some values are not added to trajectory if numsteps =1 (e.g energy)
+    # check_outputparams, some values are not added to trajectory if numsteps =1 (e.g energy)
     child_nodes = get_relaxnode_calcoutputs(relax_node)
     output_array = []
     num_steps = 0
@@ -339,7 +342,7 @@ def createjob(group_name, filename, write_only_relaxed, energy_tol,
         if isinstance(node, StructureData):
             print('using write_structure_torunner')
             write_structure_torunner(fileout, node)
-        elif isinstance(node, WorkCalculation):
+        elif isinstance(node, WorkChainNode):
             process_label = node.get_attrs()['_process_label']
             if process_label == "PwBaseWorkChain":
                 print('using write_pwbase_torunner')
