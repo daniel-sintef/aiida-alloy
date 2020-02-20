@@ -20,9 +20,9 @@ ANGSTROM_TO_BOHRRADIUS = 1./constants.bohr_to_ang
 EV_PER_ANGSTROM_TO_HARTREE_PER_BOHRRADIUS = constants.bohr_to_ang/constants.hartree_to_ev
 EV_TO_HARTREE = 1/constants.hartree_to_ev
 
-def get_allnodes_fromgroup(group_name):
+def get_allnodes_fromgroup(group_label):
     qb = QueryBuilder()
-    qb.append(Group, filters={'name': group_name}, tag='g')
+    qb.append(Group, filters={'label': group_label}, tag='g')
     qb.append(Node, tag='job', with_group='g')
     all_nodes = [x[0] for x in qb.all()]
     return all_nodes
@@ -120,18 +120,18 @@ def get_timesorted_scfs(worknode, relax_worknode=False):
 def write_pwbase_torunner(fileout, pwbasenode, extra_comments={}):
     scf_node = get_timesorted_scfs(pwbasenode)[-1]
 
-    ase_structure = scf_node.inp.structure.get_ase()
+    ase_structure = scf_node.inputs.structure.get_ase()
     cell = ase_structure.get_cell()
     positions = ase_structure.get_positions()
     elements = ase_structure.get_chemical_symbols()
 
-    atomicforce_array = scf_node.out.output_array.get_array('forces')[-1]
+    atomicforce_array = scf_node.outputs.output_array.get_array('forces')[-1]
     try:
-        atomicforce_array = scf_node.out.output_array.get_array('forces')[-1]
+        atomicforce_array = scf_node.outputs.output_array.get_array('forces')[-1]
     except KeyError:
         print('Error obtaining forces for: {} skipping..'.format(pwbasenode))
         return
-    energy = scf_node.out.output_parameters.get_attr('energy')
+    energy = scf_node.outputs.output_parameters.attributes['energy']
 
     write_runner_commentline(fileout, pwbasenode.uuid, extra_comments=extra_comments)
     write_runner_cell(fileout, cell)
@@ -145,7 +145,7 @@ def get_relaxnode_calcoutputs(node):
     q.append(WorkChainNode,
              tag="worknode2",
              with_incoming="worknode")
-    q.append(PwCalculation,
+    q.append(CalcJobNode,
              tag="pwcalc",
              with_incoming="worknode2",
              project=["id", "ctime",  "*"])
@@ -153,7 +153,7 @@ def get_relaxnode_calcoutputs(node):
     child_nodes = [x[2] for x in q.all()]
     return child_nodes
 
-def get_timesorted_values(relax_node, arrayname, np_concatenate=True,
+def get_timesorted_values(relax_node, arraylabel, np_concatenate=True,
                           check_outputparams=False):
     # check_outputparams, some values are not added to trajectory if numsteps =1 (e.g energy)
     child_nodes = get_relaxnode_calcoutputs(relax_node)
@@ -161,32 +161,35 @@ def get_timesorted_values(relax_node, arrayname, np_concatenate=True,
     num_steps = 0
     addextra_vcinfo = False # some vc-relax calcs omit final data in the trajectory
     for node in child_nodes:
+        # legacy option to keep symbols retrieval the same
+        if arraylabel == "symbols":
+            return node.attributes['symbols']
         # vc-relax calcuations require some double-counting
-        if node.inp.parameters.get_dict()['CONTROL']['calculation'] == 'vc-relax':
+        if node.inputs.parameters.get_dict()['CONTROL']['calculation'] == 'vc-relax':
             addextra_vcinfo = True
         try:
-            parser_warning = bool(node.out.output_parameters.get_dict()['parser_warnings'])
+            parser_warning = bool(node.outputs.output_parameters.get_dict()['parser_warnings'])
         except AttributeError:
             parser_warning = True
         if parser_warning != 0:
             print("Skipping failed child {} of {}".format(node, relax_node))
             continue
         try:
-            num_steps = len(node.out.output_trajectory.get_array('forces'))
-        except AttributeError:
+            num_steps = len(node.outputs.output_trajectory.get_array('forces'))
+        except Exception:
             print("No trjactories in child {} of {}".format(node, relax_node))
             continue
         if num_steps == 1 and check_outputparams:
-            output_array.append([node.out.output_parameters.get_dict()[arrayname]])
+            output_array.append([node.outputs.output_parameters.get_dict()[arraylabel]])
         else:
-            output_array.append(node.out.output_trajectory.get_array(arrayname))
+            output_array.append(node.outputs.output_trajectory.get_array(arraylabel))
 
     # vc-relax nodes are really fussy when it comes to appending to trajectory data
     if relax_node.exit_status != 0:
        addextra_vcinfo = False
     if num_steps == 1:
        addextra_vcinfo = False
-    if addextra_vcinfo and arrayname in ['steps', 'cells', 'positions']:
+    if addextra_vcinfo and arraylabel in ['steps', 'cells', 'positions']:
         output_array.append([output_array[-1][-1]])
 
     if np_concatenate:
@@ -198,6 +201,7 @@ def get_timesorted_values(relax_node, arrayname, np_concatenate=True,
 
 def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed,
                            energy_tol, verbose,  extra_comments={}):
+    print("DEBUG: {}".format(relax_node))
     timesorted_steps = get_timesorted_values(relax_node, 'steps')
     num_steps = len(timesorted_steps)
     if num_steps == 0:
@@ -207,8 +211,8 @@ def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed,
     timesorted_positions = get_timesorted_values(relax_node, 'positions')
     timesorted_energy = get_timesorted_values(relax_node, 'energy', check_outputparams=True)
     timesorted_forces = get_timesorted_values(relax_node, 'forces')
-    timesorted_elements = get_timesorted_values(relax_node, 'symbols', np_concatenate=False)
-    elements = timesorted_elements[0] #assume unchanging element positions
+    # assuming the element order remains unchanged
+    elements = relax_node.inputs.structure.get_ase().get_chemical_symbols()
 
     #Sometimes the final forces are not parsed. Trim out the last energy in that case
     if relax_node.exit_status == 401:
@@ -230,7 +234,7 @@ def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed,
     if verbose:
        print('relaxation steps:',len(timesorted_steps))
 
-    final_scf = bool(relax_node.inp.final_scf)
+    final_scf = bool(relax_node.inputs.final_scf)
     if not write_only_relaxed:
         trajectory_looprange = list(range(len(timesorted_cells)))
     elif not final_scf:
@@ -277,8 +281,8 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.option('-gn', '--group_name', default=None,
-              type=str, help="Group to export identified by name")
+@click.option('-gn', '--group_label', default=None,
+              type=str, help="Group to export identified by label")
 @click.option('-f', '--filename', required=False, default=False,
          type=str, help="filename for outputfile, default = work_group+\".input.data\"")
 @click.option('-wor', '--write_only_relaxed', required=False, default=False,
@@ -293,13 +297,13 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
               help="only output structures containing these elements")
 
 
-def createjob(group_name, filename, write_only_relaxed, energy_tol,
+def createjob(group_label, filename, write_only_relaxed, energy_tol,
               supress_readme, verbose, output_elements):
     ''' e.g.
     ./aiida_export_group_to_runner.py -gn Al6xxxDB_structuregroup
     '''
     energy_tol = energy_tol*EV_TO_HARTREE
-    all_nodes = get_allnodes_fromgroup(group_name)
+    all_nodes = get_allnodes_fromgroup(group_label)
     if not supress_readme:
         raise Exception("README code not migrated")
         aiida_utils.create_READMEtxt()
@@ -312,7 +316,7 @@ def createjob(group_name, filename, write_only_relaxed, energy_tol,
         add_to_filename = "__only_relaxed"
 
     if filename == False:
-        file = "aiida_exported_group_"+group_name+add_to_filename+".input.data"
+        file = "aiida_exported_group_"+group_label+add_to_filename+".input.data"
         fileout = open(file, "w")
     else:
         file = filename
@@ -333,7 +337,7 @@ def createjob(group_name, filename, write_only_relaxed, energy_tol,
         if verbose:
             print("Writing node: {}".format(node.uuid))
         if output_elements:
-            input_ase = node.inp.structure.get_ase()
+            input_ase = node.inputs.structure.get_ase()
             only_output_elements = all([x in output_elements
                                         for x in input_ase.get_chemical_symbols()])
             if not only_output_elements:
@@ -344,7 +348,7 @@ def createjob(group_name, filename, write_only_relaxed, energy_tol,
             print('using write_structure_torunner')
             write_structure_torunner(fileout, node)
         elif isinstance(node, WorkChainNode):
-            process_label = node.get_attrs()['_process_label']
+            process_label = node.attributes['process_label']
             if process_label == "PwBaseWorkChain":
                 print('using write_pwbase_torunner')
                 write_pwbase_torunner(fileout, node)
