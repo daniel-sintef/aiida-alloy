@@ -301,6 +301,7 @@ def createjob(group_name, filename, write_only_relaxed, energy_tol,
     energy_tol = energy_tol*EV_TO_HARTREE
     all_nodes = get_allnodes_fromgroup(group_name)
     if not supress_readme:
+        raise Exception("README code not migrated")
         aiida_utils.create_READMEtxt()
 
     if output_elements:
