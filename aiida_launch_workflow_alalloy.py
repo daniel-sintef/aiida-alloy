@@ -13,13 +13,13 @@ def retrieve_alluncalculated_structures(structure_group_label,
                                         workchain_group_label=None):
     from aiida.orm import Group
     from aiida.orm import StructureData
-    from aiida.orm import CalcJobNode
+    from aiida.orm import WorkChainNode 
     from aiida.orm import QueryBuilder
 
     sqb = QueryBuilder()
     sqb.append(Group, filters={'label': structure_group_label}, tag='g')
     sqb.append(StructureData, project='id', tag='s', with_group='g')
-    sqb.append(CalcJobNode, tag='job', with_descendants='s')
+    sqb.append(WorkChainNode, tag='job', with_incoming='s')
 
     filters = {}
     if workchain_group_label:
@@ -485,7 +485,7 @@ def launch(code_node, structure_group_label, workchain_group_label,
             print("ase_structure: {}".format(structure.get_ase()))
             print("aiida_settings: {}".format(settings.get_dict()))
             #print "aiida_parameters: {}".format(inputs['base']['parameters'].get_dict())
-            print("aiida_options: {}".format(workchain_options.get_dict()))
+            print("aiida_options: {}".format(workchain_options))
             print("aiida_inputs: {}".format(inputs))
             print_timing(start)
             continue
