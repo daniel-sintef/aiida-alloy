@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 import click
 import time
+import copy
 import sys
+from pprint import pprint
 
 import aiida
 aiida.load_profile()
@@ -274,7 +276,7 @@ def wf_delete_vccards(parameter):
               help='submit the script to debug queue. Submits one structure only'
                    ' and does not attach the output to the workchain_group')
 @click.option('-rdb', '--run_debug', is_flag=True,
-              help='run the script in debug mode. runs first calc then exitsj'
+              help='run the script in debug mode. runs first calc then exits'
                    ' and does not attach the output to the workchain_group')
 def launch(code_node, structure_group_label, workchain_group_label,
            structure_node, base_parameter_node,
@@ -328,12 +330,16 @@ def launch(code_node, structure_group_label, workchain_group_label,
 
 
     # submit calculations
+    submit_counter=0
     for structure in uncalculated_structures:
         if use_conventional_structure:
             structure = wf_getconventionalstructure(structure)
         print("Preparing to launch {}".format(structure))
-        print("calcs to submit: {} max calcs:{}".format(calcs_to_submit,
+        print("calcs to submit: {} (active/max){}:{}".format(
+                                     len(uncalculated_structures) -submit_counter,
+                                                        calcs_to_submit,
                                                         max_active_calculations))
+        submit_counter += 1
 
         if len(structure.get_ase()) > max_atoms_submit:
             print("{} has more atoms than the max allowed {}".format(structure,
@@ -458,15 +464,47 @@ def launch(code_node, structure_group_label, workchain_group_label,
             if calc_method == 'relax':
                 inputs['relaxation_scheme'] = Str('relax')
                 parameters = wf_delete_vccards(parameters)
+                inputs['base']['pw']['parameters'] = parameters
             elif calc_method == 'vc-relax':
                 inputs['relaxation_scheme'] = Str('vc-relax')
-            inputs['base']['pw']['parameters'] = parameters
+                inputs['base']['pw']['parameters'] = parameters
+            if calc_method == 'elastic':
+                if submit_debug:
+                    print("Using debug queue with elastic workchain is not advised!")
         elif calc_method == 'elastic':
-            if submit_debug:
-                print("Using debug queue with elastic workchain is not advised!")
             WorkChain = WorkflowFactory('elastic')
-            inputs['initial_relax'] = vcrelax_inputs
-            inputs['elastic_relax'] = relax_inputs
+            inputs['structure'] = structure
+
+            # Unfortunately deepcopy on code caueses issues so we need to duplicate
+            # a lot of information
+            sub_relax_inputs = {
+                'base': {k: base_inputs[k]  for k in base_inputs if k != 'parameters'},
+                'relaxation_scheme': Str('relax'),
+                'final_scf' : Bool(False),
+                'meta_convergence' : Bool(False)
+            }
+            sub_relax_inputs['base']['pseudo_family'] = Str(pseudo_familyname)
+            sub_relax_inputs['base']['kpoints'] = kpoints
+            sub_relax_inputs['relaxation_scheme'] = Str('relax')
+            sub_relax_parameters = wf_delete_vccards(parameters)
+            sub_relax_inputs['base']['pw']['parameters'] = sub_relax_parameters
+
+
+            sub_vcrelax_inputs = {
+                'base': {k: base_inputs[k]  for k in base_inputs if k != 'parameters'},
+                'relaxation_scheme': Str('relax'),
+                'final_scf' : Bool(False),
+                'meta_convergence' : Bool(False)
+            }
+            sub_vcrelax_inputs['base']['pseudo_family'] = Str(pseudo_familyname)
+            sub_vcrelax_inputs['base']['kpoints'] = kpoints
+            sub_vcrelax_inputs['relaxation_scheme'] = Str('relax')
+            sub_vcrelax_inputs['relaxation_scheme'] = Str('vc-relax')
+            sub_vcrelax_inputs['base']['pw']['parameters'] = parameters
+
+            inputs['initial_relax'] = sub_vcrelax_inputs
+            inputs['elastic_relax'] = sub_relax_inputs
+
             if strain_magnitudes:
                 strain_magnitudes_list = [float(x) for x in strain_magnitudes.split(',')]
                 inputs['strain_magnitudes'] = List(list=strain_magnitudes_list)
@@ -482,11 +520,12 @@ def launch(code_node, structure_group_label, workchain_group_label,
 
         calcs_to_submit -= 1
         if dryrun:
-            print("ase_structure: {}".format(structure.get_ase()))
-            print("aiida_settings: {}".format(settings.get_dict()))
-            #print "aiida_parameters: {}".format(inputs['base']['parameters'].get_dict())
-            print("aiida_options: {}".format(workchain_options))
-            print("aiida_inputs: {}".format(inputs))
+            pprint("ase_structure: {}".format(structure.get_ase()))
+            pprint("aiida_settings: {}".format(settings.get_dict()))
+            #pprint "aiida_parameters: {}".format(inputs['base']['parameters'].get_dict())
+            pprint("aiida_options: {}".format(workchain_options))
+            pprint("aiida_inputs: ")
+            pprint(inputs)
             print_timing(start)
             continue
         elif run_debug:

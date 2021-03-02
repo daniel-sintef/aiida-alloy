@@ -1,28 +1,22 @@
 import copy
 import pymatgen as mg
 from pymatgen.analysis.elasticity import DeformedStructureSet
-from pymatgen.analysis.elasticity.tensors import symmetry_reduce
+from pymatgen.core.tensors import symmetry_reduce
 from pymatgen.analysis.elasticity.stress import Stress
 from pymatgen.analysis.elasticity.elastic import ElasticTensor
 import numpy as np
 from aiida.common.extendeddicts import AttributeDict
-from aiida.orm import Str, Bool, List
-from aiida.orm.nodes.data.array import ArrayData
-from aiida.orm import StructureData
-from aiida.orm import Dict
+from aiida.orm import Str, Bool, Dict, List
+from aiida.orm import ArrayData, StructureData
 from aiida.engine import WorkChain, ToContext, if_, append_
 from aiida_quantumespresso.workflows.pw.relax import PwRelaxWorkChain
-from aiida.engine.workfunctions import workfunction
 
 def get_qerelax_stress(workchain):
     '''
     Get the stress output of a PwRelaxWorkchain
     '''
-    outputs_dict = workchain.get_outputs_dict()
-    output_parameters = outputs_dict['output_parameters']
-
-    output_parameters_dict = output_parameters.get_dict()
-    stress = np.array(output_parameters_dict['stress'])
+    stress = workchain.outputs.output_trajectory.get_array('stress')[-1]
+    stress = np.array(stress)
     return stress
 
 def _get_deformed_structures(equilibrium_structure, strain_magnitudes, 
@@ -81,11 +75,11 @@ class ElasticWorkChain(WorkChain):
         super(ElasticWorkChain, cls).define(spec)
 
         spec.input('structure', valid_type=StructureData)
-        spec.input('symmetric_strains_only', valid_type=Bool, default=Bool(True))
-        spec.input('skip_input_relax', valid_type=Bool, default=Bool(False))
+        spec.input('symmetric_strains_only', valid_type=Bool, default=lambda: Bool(True))
+        spec.input('skip_input_relax', valid_type=Bool, default=lambda: Bool(False))
         spec.input('strain_magnitudes', valid_type=List,
-                                        default=List(list=[-0.01,-0.005,0.005,0.01]))
-        spec.input('clean_workdir', valid_type=Bool, default=Bool(True))
+                                        default=lambda: List(list=[-0.01,-0.005,0.005,0.01]))
+        spec.input('clean_workdir', valid_type=Bool, default=lambda: Bool(True))
         spec.expose_inputs(PwRelaxWorkChain, namespace='initial_relax',
                            exclude=('structure', 'clean_workdir')) 
         spec.expose_inputs(PwRelaxWorkChain, namespace='elastic_relax',
@@ -103,7 +97,7 @@ class ElasticWorkChain(WorkChain):
 
         spec.output('equilibrium_structure', valid_type=StructureData)
         spec.output('elastic_outputs', valid_type=ArrayData)
-        spec.output('symmetry_mapping', valid_type=ParameterData)
+        spec.output('symmetry_mapping', valid_type=Dict)
 
         spec.exit_code(401, 'ERROR_SUB_PROCESS_FAILED_RELAX',
                        message='one of the PwRelaxWorkChain subprocesses failed')
@@ -137,11 +131,9 @@ class ElasticWorkChain(WorkChain):
                         .format(workchain.pk, workchain.exit_status))
             return self.exit_codes.ERROR_SUB_PROCESS_FAILED_RELAX
         else:
-            outputs_dict = workchain.get_outputs_dict()
-            output_parameters_dict = outputs_dict['output_parameters'].get_dict()
-            stress = np.array(output_parameters_dict['stress'])
+            stress = get_qerelax_stress(workchain)
 
-            self.ctx.equilibrium_structure = workchain.out.output_structure
+            self.ctx.equilibrium_structure = workchain.outputs.output_structure
             self.ctx.equilibrium_stress = Stress(stress)
 
             ## Uncomment to control the input structure while debugging 
@@ -258,6 +250,8 @@ class ElasticWorkChain(WorkChain):
                                            np.array(self.ctx.symm_eql_strains))
         elastic_outputs.set_array("symm_eql_stresses",
                                            np.array(self.ctx.symm_eql_stresses))
+        elastic_outputs.store()
+        symmetry_mapping.store()
 
         self.out('equilibrium_structure', self.ctx.equilibrium_structure)
         self.out('elastic_outputs', elastic_outputs)
