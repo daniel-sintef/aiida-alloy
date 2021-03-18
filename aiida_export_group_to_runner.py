@@ -120,17 +120,18 @@ def get_timesorted_scfs(worknode, relax_worknode=False):
 def write_pwbase_torunner(fileout, pwbasenode, extra_comments={}):
     scf_node = get_timesorted_scfs(pwbasenode)[-1]
 
-    ase_structure = scf_node.inputs.structure.get_ase()
+    try:
+        ase_structure = scf_node.inputs.structure.get_ase()
+    except Exception:
+        ase_structure = scf_node.inputs.pw__structure.get_ase()
     cell = ase_structure.get_cell()
     positions = ase_structure.get_positions()
     elements = ase_structure.get_chemical_symbols()
 
-    atomicforce_array = scf_node.outputs.output_array.get_array('forces')[-1]
     try:
         atomicforce_array = scf_node.outputs.output_array.get_array('forces')[-1]
-    except KeyError:
-        print('Error obtaining forces for: {} skipping..'.format(pwbasenode))
-        return
+    except Exception:
+        atomicforce_array = scf_node.outputs.output_trajectory.get_array('forces')[-1]
     energy = scf_node.outputs.output_parameters.attributes['energy']
 
     write_runner_commentline(fileout, pwbasenode.uuid, extra_comments=extra_comments)
@@ -201,7 +202,6 @@ def get_timesorted_values(relax_node, arraylabel, np_concatenate=True,
 
 def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed,
                            energy_tol, verbose,  extra_comments={}):
-    print("DEBUG: {}".format(relax_node))
     timesorted_steps = get_timesorted_values(relax_node, 'steps')
     num_steps = len(timesorted_steps)
     if num_steps == 0:
@@ -212,22 +212,25 @@ def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed,
     timesorted_energy = get_timesorted_values(relax_node, 'energy', check_outputparams=True)
     timesorted_forces = get_timesorted_values(relax_node, 'forces')
     # assuming the element order remains unchanged
-    elements = relax_node.inputs.structure.get_ase().get_chemical_symbols()
+    try:
+        elements = relax_node.inputs.structure.get_ase().get_chemical_symbols()
+    except Exception:
+        elements = relax_node.inputs.pw__structure.get_ase().get_chemical_symbols()
 
     #Sometimes the final forces are not parsed. Trim out the last energy in that case
     if relax_node.exit_status == 401:
-        timesorted_energy = timesorted_energy[0:len(timesorted_forces)]
+        # new versions of AiiDA don't seem to have this problem anymore
+        if len(timesorted_energy) != len(timesorted_forces):
+            timesorted_energy = timesorted_energy[0:len(timesorted_forces)]
 
     if len(timesorted_cells) != num_steps:
-       raise Exception("Cells does not have the proper number of steps!")
+       raise AssertionError("Cells does not have the proper number of steps!")
     if len(timesorted_positions) != num_steps:
-       raise Exception("Positions does not have the proper number of steps!")
+       raise AssertionError("Positions does not have the proper number of steps!")
     if len(timesorted_energy) != num_steps:
-       print(timesorted_forces, timesorted_energy, timesorted_steps)
-       print(len(timesorted_energy), len(timesorted_steps), len(timesorted_forces))
-       raise Exception("Energies does not have the proper number of steps!")
+       raise AssertionError("Energies does not have the proper number of steps!")
     if len(timesorted_forces) != num_steps:
-       raise Exception("Forces does not have the proper number of steps!")
+       raise AssertionError("Forces does not have the proper number of steps!")
 
     extra_comments={"trajectory_step":None}
 
@@ -324,10 +327,13 @@ def createjob(group_label, filename, write_only_relaxed, energy_tol,
 
     if verbose:
         print('file           :', file)
-        print('structure_group:', group_name)
+        print('structure_group:', group_label)
 
     for node in all_nodes:
         exit_status = node.exit_status
+        if exit_status is None:
+            print("WARNING {} has an unkown exit status, skipping!".format(node))
+            continue
         if int(exit_status) in [401]:
             print("WARNING {} had a non-critical non-zero exit!".format(node, exit_status))
         if int(exit_status) in [104]:
@@ -337,7 +343,10 @@ def createjob(group_label, filename, write_only_relaxed, energy_tol,
         if verbose:
             print("Writing node: {}".format(node.uuid))
         if output_elements:
-            input_ase = node.inputs.structure.get_ase()
+            try:
+                input_ase = node.inputs.structure.get_ase()
+            except Exception:
+                input_ase = node.inputs.pw__structure.get_ase()
             only_output_elements = all([x in output_elements
                                         for x in input_ase.get_chemical_symbols()])
             if not only_output_elements:
@@ -354,8 +363,11 @@ def createjob(group_label, filename, write_only_relaxed, energy_tol,
                 write_pwbase_torunner(fileout, node)
             elif process_label == "PwRelaxWorkChain":
                 print('using write_pwrelax_torunner')
-                write_pwrelax_torunner(fileout, node,write_only_relaxed,
-                                       energy_tol,verbose)
+                try:
+                    write_pwrelax_torunner(fileout, node,write_only_relaxed,
+                                           energy_tol,verbose)
+                except AssertionError:
+                    print("ERROR WRITING RELAXNODE: ",node.uuid)
             elif process_label == "ElasticWorkChain":
                 print("recursively adding Elastic nodes")
                 elastic_children = get_outputcalcs(node)
