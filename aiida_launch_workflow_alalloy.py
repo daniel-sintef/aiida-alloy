@@ -149,6 +149,7 @@ def wf_getconventionalstructure(structuredata):
         using spglib
     :param structuredata: original StructureData
     '''
+    raise Exception("THIS SHOULD BE A WORKFUNCTION!") 
     from aiida.orm import StructureData
     from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
@@ -374,6 +375,8 @@ def launch(code_node, structure_group_label, workchain_group_label,
             cellpress_dict = {"CELL":base_parameter.get_dict()["CELL"]}
         else:
             cellpress_dict = {}
+            if press_conv_thr or z_cellrelax_only:
+                    cellpress_dict["CELL"] = {}
         if press_conv_thr:
             cellpress_dict["CELL"]["press_conv_thr"] = float(press_conv_thr)
         if z_cellrelax_only:

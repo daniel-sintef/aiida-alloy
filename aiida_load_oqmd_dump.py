@@ -12,18 +12,22 @@ from aiida_create_solutesupercell_structures import *
 @click.command()
 @click.option('-od', '--oqmd_dumpdir', required=True,
                help="path to a directory containing a dump of OQMD entries")
+@click.option('-e', '--extras', required=True,
+              help="Add extras, each key,label is joined by a comman and seperated"
+                   " by pipes. e.g. key1,label1|key2,label2")
 @click.option('-sg', '--structure_group_label', required=True,
               help="Output AiiDA group to store created structures")
 @click.option('-sgd', '--structure_group_description', default="",
               help="Description for output AiiDA group")
 @click.option('-dr', '--dryrun', is_flag=True,
               help="Prints structures and extras but does not store anything")
-def launch(oqmd_dumpdir, structure_group_label, structure_group_description, dryrun):
+def launch(oqmd_dumpdir, structure_group_label, structure_group_description, extras,  dryrun):
     """
     Load an 'OQMD' dump (created by an custom script). Expects a directory containing a set
     of OQMD_<ID> vasp-formatted POSCAR, and for each of these a corresponding OQMD_<ID>.json
     json file wich contains a dump of the meta-data
     """
+    extras = {y[0]:y[1] for y in [x.split(',') for x in extras.split('|')]}
 
     print("loading dataset: {} to group: {}".format(oqmd_dumpdir, structure_group_label))
     # Setup/Retrieve the Group
@@ -44,6 +48,9 @@ def launch(oqmd_dumpdir, structure_group_label, structure_group_description, dry
         with open(oqmd_json, 'r') as fp:
             oqmd_meta = json.load(fp)
 
+        for k,v in extras.items():
+            if k not in oqmd_meta:
+                oqmd_meta[k] = v
         store_asestructure(oqmd_structure, oqmd_meta, structure_group, dryrun)
 
 if __name__ == "__main__":

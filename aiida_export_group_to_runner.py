@@ -18,6 +18,9 @@ import numpy as np
 #Define unit conversions
 ANGSTROM_TO_BOHRRADIUS = 1./constants.bohr_to_ang
 EV_PER_ANGSTROM_TO_HARTREE_PER_BOHRRADIUS = constants.bohr_to_ang/constants.hartree_to_ev
+EV_PER_ANGSTROM_P3_TO_HARTREE_PER_BOHRRADIUS_P3 = (constants.bohr_to_ang**3)/constants.hartree_to_ev
+GPA_TO_EV_PER_ANGSTROM_P3 = 1./160.21766208
+GPA_TO_HARTREE_PER_BOHRADIUS_P3 = GPA_TO_EV_PER_ANGSTROM_P3 * EV_PER_ANGSTROM_P3_TO_HARTREE_PER_BOHRRADIUS_P3
 EV_TO_HARTREE = 1/constants.hartree_to_ev
 
 def get_allnodes_fromgroup(group_label):
@@ -50,6 +53,15 @@ def write_runner_cell(fileout, cell):
     for idx_cell, i in enumerate(cell):
         fileout.write("lattice %.10f %.10f %.10f\n" %
                       (cell[idx_cell][0], cell[idx_cell][1], cell[idx_cell][2]))
+    return
+
+def write_runner_stress(fileout, stress):
+    stress = np.array(stress) * GPA_TO_HARTREE_PER_BOHRADIUS_P3
+    for idx_stress, i in enumerate(stress):
+        fileout.write("stress %.20f %.20f %.20f\n" %
+                      (stress[idx_stress][0],
+                       stress[idx_stress][1],
+                       stress[idx_stress][2]))
     return
 
 def write_runner_atomlines(fileout, atomiccoord_array, elements, atomicforce_array=None):
@@ -95,6 +107,15 @@ def write_structure_torunner(fileout, structure_node, extra_comments={}):
     write_runner_finalline(fileout)
     return
 
+def get_timesorted_calcjobs(relaxworknode):
+    q = QueryBuilder()
+    q.append(WorkChainNode, filters={"uuid": relaxworknode.uuid}, tag="relaxworknode")
+    q.append(CalcJobNode, with_incoming="relaxworknode",
+             project=["id", "ctime",  "*"],  tag="calc")
+    q.order_by({"calc": "ctime"})
+    timesorted_scf = [x[2] for x in q.all()]
+    return timesorted_scf
+
 def get_timesorted_basenodes(relaxworknode):
     q = QueryBuilder()
     q.append(WorkChainNode, filters={"uuid": relaxworknode.uuid}, tag="relaxworknode")
@@ -117,7 +138,7 @@ def get_timesorted_scfs(worknode, relax_worknode=False):
     timesorted_scf = [x[2] for x in q.all()]
     return timesorted_scf
 
-def write_pwbase_torunner(fileout, pwbasenode, extra_comments={}):
+def write_pwbase_torunner(fileout, pwbasenode, dump_stress, extra_comments={}):
     scf_node = get_timesorted_scfs(pwbasenode)[-1]
 
     try:
@@ -132,10 +153,16 @@ def write_pwbase_torunner(fileout, pwbasenode, extra_comments={}):
         atomicforce_array = scf_node.outputs.output_array.get_array('forces')[-1]
     except Exception:
         atomicforce_array = scf_node.outputs.output_trajectory.get_array('forces')[-1]
+
+    if dump_stress:
+        #NOTE: in modern runs this data is in the output_trajectory
+        stress = scf_node.outputs.output_parameters.attributes['stress']
     energy = scf_node.outputs.output_parameters.attributes['energy']
 
     write_runner_commentline(fileout, pwbasenode.uuid, extra_comments=extra_comments)
     write_runner_cell(fileout, cell)
+    if dump_stress:
+        write_runner_stress(fileout, stress)
     write_runner_atomlines(fileout, positions, elements, atomicforce_array=atomicforce_array)
     write_runner_finalline(fileout, energy=energy)
     return
@@ -169,10 +196,10 @@ def get_timesorted_values(relax_node, arraylabel, np_concatenate=True,
         if node.inputs.parameters.get_dict()['CONTROL']['calculation'] == 'vc-relax':
             addextra_vcinfo = True
         try:
-            parser_warning = bool(node.outputs.output_parameters.get_dict()['parser_warnings'])
+           exit_status  = node.exit_status
         except AttributeError:
-            parser_warning = True
-        if parser_warning != 0:
+           exit_status = 1
+        if exit_status not in  [0, 400]:
             print("Skipping failed child {} of {}".format(node, relax_node))
             continue
         try:
@@ -298,14 +325,17 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
          type=str, help="Enables verbosity")
 @click.option('-oe', '--output_elements', required=False,
               help="only output structures containing these elements")
+@click.option('-ds', '--dump_stress', is_flag=True,
+         type=str, help="dumps the stress for each output")
 
 
 def createjob(group_label, filename, write_only_relaxed, energy_tol,
-              supress_readme, verbose, output_elements):
+              supress_readme, verbose, output_elements, dump_stress):
     ''' e.g.
     ./aiida_export_group_to_runner.py -gn Al6xxxDB_structuregroup
     '''
     energy_tol = energy_tol*EV_TO_HARTREE
+    print("ENERGY_TOL", energy_tol)
     all_nodes = get_allnodes_fromgroup(group_label)
     if not supress_readme:
         raise Exception("README code not migrated")
@@ -360,7 +390,11 @@ def createjob(group_label, filename, write_only_relaxed, energy_tol,
             process_label = node.attributes['process_label']
             if process_label == "PwBaseWorkChain":
                 print('using write_pwbase_torunner')
-                write_pwbase_torunner(fileout, node)
+                write_pwbase_torunner(fileout, node, dump_stress)
+                #try:
+                #    write_pwbase_torunner(fileout, node, dump_stress)
+                #except Exception:
+                #    print("ERROR WRITING SCFNODE: ",node.uuid)
             elif process_label == "PwRelaxWorkChain":
                 print('using write_pwrelax_torunner')
                 try:
