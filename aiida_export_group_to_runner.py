@@ -96,6 +96,7 @@ def write_runner_finalline(fileout, energy=0, charge=0):
 def write_structure_torunner(fileout, structure_node, extra_comments={}):
     # get structure path, if applicable
     ase_structure = structure_node.get_ase()
+    ase_structure.wrap() # need this to avoid a bug in old n2p2 versions
 
     cell = ase_structure.get_cell()
     positions = ase_structure.get_positions()
@@ -143,8 +144,10 @@ def write_pwbase_torunner(fileout, pwbasenode, dump_stress, extra_comments={}):
 
     try:
         ase_structure = scf_node.inputs.structure.get_ase()
+        ase_structure.wrap()
     except Exception:
         ase_structure = scf_node.inputs.pw__structure.get_ase()
+        ase_structure = ase_structure.wrap()
     cell = ase_structure.get_cell()
     positions = ase_structure.get_positions()
     elements = ase_structure.get_chemical_symbols()
@@ -199,18 +202,24 @@ def get_timesorted_values(relax_node, arraylabel, np_concatenate=True,
            exit_status  = node.exit_status
         except AttributeError:
            exit_status = 1
-        if exit_status not in  [0, 400]:
+        if exit_status not in  [0, 2, 400, 500, 501, 520]:
+        #if exit_status not in  [0, 400, 500, 501, 520]:
             print("Skipping failed child {} of {}".format(node, relax_node))
             continue
         try:
-            num_steps = len(node.outputs.output_trajectory.get_array('forces'))
+            num_steps = len(node.outputs.output_trajectory.get_array('steps'))
+            num_energies = len(node.outputs.output_trajectory.get_array('energy'))
         except Exception:
             print("No trjactories in child {} of {}".format(node, relax_node))
+            continue
+        if num_steps < num_energies:
+            print("Too many energies in child {} of {}".format(node, relax_node))
             continue
         if num_steps == 1 and check_outputparams:
             output_array.append([node.outputs.output_parameters.get_dict()[arraylabel]])
         else:
-            output_array.append(node.outputs.output_trajectory.get_array(arraylabel))
+            child_array = node.outputs.output_trajectory.get_array(arraylabel)
+            output_array.append(child_array)
 
     # vc-relax nodes are really fussy when it comes to appending to trajectory data
     if relax_node.exit_status != 0:
@@ -220,11 +229,10 @@ def get_timesorted_values(relax_node, arraylabel, np_concatenate=True,
     if addextra_vcinfo and arraylabel in ['steps', 'cells', 'positions']:
         output_array.append([output_array[-1][-1]])
 
-    if np_concatenate:
-        try:
-            output_array = np.concatenate(output_array)
-        except ValueError:
-            return []
+    try:
+        output_array = np.concatenate(output_array)
+    except ValueError:
+        return []
     return output_array
 
 def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed,
@@ -250,11 +258,14 @@ def write_pwrelax_torunner(fileout, relax_node, write_only_relaxed,
         if len(timesorted_energy) != len(timesorted_forces):
             timesorted_energy = timesorted_energy[0:len(timesorted_forces)]
 
+    print(relax_node)
     if len(timesorted_cells) != num_steps:
        raise AssertionError("Cells does not have the proper number of steps!")
     if len(timesorted_positions) != num_steps:
        raise AssertionError("Positions does not have the proper number of steps!")
     if len(timesorted_energy) != num_steps:
+       print('E', len(timesorted_energy), 'STEPS', num_steps)
+       print("ERROR {}".format(relax_node))
        raise AssertionError("Energies does not have the proper number of steps!")
     if len(timesorted_forces) != num_steps:
        raise AssertionError("Forces does not have the proper number of steps!")
@@ -320,29 +331,31 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('-et', '--energy_tol', required=False, default=0.5,
          help="Only dumps relaxation steps of minimum energy_tol(eV) apart")
 @click.option('-sreadme', '--supress_readme', is_flag=True,
-         help="supresses the generation of a readme file")
+         help="DOES NOTHING KEPT ONLY FOR COMPATIBILITY."
+              "supresses the generation of a readme file")
 @click.option('-v', '--verbose', is_flag=True,
          type=str, help="Enables verbosity")
 @click.option('-oe', '--output_elements', required=False,
               help="only output structures containing these elements")
+@click.option('-re', '--required_elements', required=False,
+              help="All output structures must contain this element")
 @click.option('-ds', '--dump_stress', is_flag=True,
          type=str, help="dumps the stress for each output")
 
 
 def createjob(group_label, filename, write_only_relaxed, energy_tol,
-              supress_readme, verbose, output_elements, dump_stress):
+              supress_readme, verbose, output_elements, required_elements, dump_stress):
     ''' e.g.
     ./aiida_export_group_to_runner.py -gn Al6xxxDB_structuregroup
     '''
     energy_tol = energy_tol*EV_TO_HARTREE
     print("ENERGY_TOL", energy_tol)
     all_nodes = get_allnodes_fromgroup(group_label)
-    if not supress_readme:
-        raise Exception("README code not migrated")
-        aiida_utils.create_READMEtxt()
 
     if output_elements:
         output_elements = prep_elementlist(output_elements)
+    if required_elements:
+        required_elements = prep_elementlist(required_elements)
 
     add_to_filename = "__all_steps"
     if write_only_relaxed == True:
@@ -364,11 +377,15 @@ def createjob(group_label, filename, write_only_relaxed, energy_tol,
         if exit_status is None:
             print("WARNING {} has an unkown exit status, skipping!".format(node))
             continue
-        if int(exit_status) in [401]:
+        if int(exit_status) in [0]:
+            pass #succesful calculation no need to print a warning
+        elif int(exit_status) in [401]:
             print("WARNING {} had a non-critical non-zero exit!".format(node, exit_status))
-        if int(exit_status) in [104]:
+        elif int(exit_status) in [104, 305]:
             print("WARNING {} had a critical non-zero exit, skipping!".format(node, exit_status))
             continue
+        else:
+            print("WARNING Unknown exit status", exit_status, " for node", node.pk)
 
         if verbose:
             print("Writing node: {}".format(node.uuid))
@@ -382,6 +399,16 @@ def createjob(group_label, filename, write_only_relaxed, energy_tol,
             if not only_output_elements:
                 print("Skipping: {}/{}".format(input_ase, node))
                 continue
+        if required_elements:
+            try:
+                input_ase = node.inputs.structure.get_ase()
+            except Exception:
+                input_ase = node.inputs.pw__structure.get_ase()
+            any_required_elements = any([x in required_elements
+                                        for x in input_ase.get_chemical_symbols()])
+            if not any_required_elements:
+                print("Skipping: {}/{}".format(input_ase, node))
+                continue
 
         if isinstance(node, StructureData):
             print('using write_structure_torunner')
@@ -390,18 +417,24 @@ def createjob(group_label, filename, write_only_relaxed, energy_tol,
             process_label = node.attributes['process_label']
             if process_label == "PwBaseWorkChain":
                 print('using write_pwbase_torunner')
-                write_pwbase_torunner(fileout, node, dump_stress)
-                #try:
-                #    write_pwbase_torunner(fileout, node, dump_stress)
-                #except Exception:
-                #    print("ERROR WRITING SCFNODE: ",node.uuid)
+                try:
+                    write_pwbase_torunner(fileout, node, dump_stress)
+                except Exception:
+                    print("ERROR WRITING SCFNODE: ",node.uuid)
             elif process_label == "PwRelaxWorkChain":
                 print('using write_pwrelax_torunner')
-                try:
-                    write_pwrelax_torunner(fileout, node,write_only_relaxed,
-                                           energy_tol,verbose)
-                except AssertionError:
-                    print("ERROR WRITING RELAXNODE: ",node.uuid)
+                #try:
+                write_pwrelax_torunner(fileout, node,write_only_relaxed,
+                                       energy_tol,verbose)
+                #except AssertionError as e:
+                #    print("ERROR WRITING RELAXNODE: ",node.uuid)
+                #    print(e)
+                #try:
+                #    write_pwrelax_torunner(fileout, node,write_only_relaxed,
+                #                           energy_tol,verbose)
+                #except Exception as e:
+                #    print("ERROR WRITING RELAXNODE: ",node.uuid)
+                #    print(e)
             elif process_label == "ElasticWorkChain":
                 print("recursively adding Elastic nodes")
                 elastic_children = get_outputcalcs(node)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import aiida
-import os
 aiida.load_profile()
+import os
 from aiida.orm import Group
 from aiida_create_solutesupercell_structures import *
 import ase
@@ -98,25 +98,34 @@ def launch(matrix_elements, lattice_sizes, concentrations,
     if not all(len(x) == len(matching_lists[0]) for x in matching_lists):
         raise Exception("unequal matrix_elements, lattice_sizes or concentrations")
 
-    average_lattice = get_averaged_lattice(lattice_sizes, concentrations)
-    extras = {
-        'matrix_elements':matrix_elements,
-        'lattice_sizes':lattice_sizes,
-        'average_lattice':average_lattice,
-        'concentrations':concentrations,
-        'supercell_shape':supercell_shape,
-        'random_displacement_stdev':random_displacement
-                  }
-
-    base_structure = gen_ase_supercell(average_lattice, supercell_shape, matrix_elements[0])
 
 
     for i in range(number_samples):
+        #matrix_concentration = concentrations[0]
+        #solute_concentrations = concentrations[1:]
+        #res = np.array([x*random.random() for x in solute_concentrations])
+        #norm_res = (res/res.sum())*(1-matrix_concentration)
+        #norm_conc = np.array([matrix_concentration] + norm_res.tolist())
+
+        res = np.array([x*random.random() for x in concentrations])
+        norm_conc = (res/res.sum())
+
+        average_lattice = get_averaged_lattice(lattice_sizes, norm_conc)
+        extras = {
+            'matrix_elements':matrix_elements,
+            'lattice_sizes':lattice_sizes,
+            'average_lattice':average_lattice,
+            'concentrations': norm_conc,
+            'supercell_shape':supercell_shape,
+            'random_displacement_stdev':random_displacement
+                      }
+        base_structure = gen_ase_supercell(average_lattice, supercell_shape, matrix_elements[0])
+
         random_structure = copy.deepcopy(base_structure)
         matrix_seed = random.randint(1, 2**32-1)
         extras['matrix_seed'] = matrix_seed
         random_ase = randomize_asestructure(random_structure, matrix_elements,
-                                            concentrations, matrix_seed)
+                                            norm_conc, matrix_seed)
         displacement_seed = random.randint(1, 2**32-1)
         extras['displacement_seed'] = displacement_seed
         random_ase.rattle(stdev=random_displacement, seed=displacement_seed)

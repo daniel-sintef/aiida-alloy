@@ -12,7 +12,7 @@ from aiida_create_solutesupercell_structures import *
 @click.command()
 @click.option('-od', '--oqmd_dumpdir', required=True,
                help="path to a directory containing a dump of OQMD entries")
-@click.option('-e', '--extras', required=True,
+@click.option('-e', '--extras', required=False,
               help="Add extras, each key,label is joined by a comman and seperated"
                    " by pipes. e.g. key1,label1|key2,label2")
 @click.option('-sg', '--structure_group_label', required=True,
@@ -27,7 +27,10 @@ def launch(oqmd_dumpdir, structure_group_label, structure_group_description, ext
     of OQMD_<ID> vasp-formatted POSCAR, and for each of these a corresponding OQMD_<ID>.json
     json file wich contains a dump of the meta-data
     """
-    extras = {y[0]:y[1] for y in [x.split(',') for x in extras.split('|')]}
+    if extras is not None:
+        extras = {y[0]:y[1] for y in [x.split(',') for x in extras.split('|')]}
+    else:
+        extras = {}
 
     print("loading dataset: {} to group: {}".format(oqmd_dumpdir, structure_group_label))
     # Setup/Retrieve the Group

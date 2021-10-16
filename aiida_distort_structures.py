@@ -51,7 +51,7 @@ def get_strained_structures(equilibrium_structure, norm_strains,
     import pymatgen as mg
     from pymatgen.analysis.elasticity import DeformedStructureSet
     from pymatgen.io.ase import AseAtomsAdaptor
-    from pymatgen.analysis.elasticity.tensors import symmetry_reduce
+    from pymatgen.core.tensors import symmetry_reduce
 
 
     #global debug_global
@@ -129,7 +129,7 @@ def launch(input_group, input_structures, repeat_expansion,
         structure_group = None
 
     if input_group:
-        structure_nodes = get_allstructures_fromgroup(input_group)
+        structure_nodes = Group.get(label=input_group).nodes
     elif input_structures:
         input_structures = input_structures.split(',')
         structure_nodes = [load_node(x) for x in input_structures]
