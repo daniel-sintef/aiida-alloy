@@ -1,0 +1,41 @@
+GROUPNAME=ThetaGSF_structures
+GENSTRUCTURE_CMD="../aiida_create_stackingfault_structures.py -sg $GROUPNAME"
+
+#DRYRUN=
+PERIODIC_Z="--periodic_zrepeats 8"
+STRUCTURE_UUID=d380c2ad-04f8-4766-aed3-d34e5906a62e
+STRUCTURE_CMD="-cstn $STRUCTURE_UUID"
+DISPLACEMENTS="0.0,0.0
+0.20,0.35
+0.30,0.00
+0.40,0.20
+0.40,0.45
+0.60,0.60
+0.65,0.25
+0.90,0.60
+"
+for DISPLACEMENT in $DISPLACEMENTS; do
+  DX=$(echo $DISPLACEMENT | awk -F, '{print $1}')
+  DY=$(echo $DISPLACEMENT | awk -F, '{print $2}')
+  $GENSTRUCTURE_CMD  $DRYRUN -dx $DX -dy $DY $PERIODIC_Z $STRUCTURE_CMD
+done
+
+#DRYRUN=--dryrun
+DRYRUN=
+PERIODIC_Z="--periodic_zrepeats 10"
+STRUCTURE_UUID=32d2a7c1-fab5-44fb-a469-62f492725474
+STRUCTURE_CMD="-cstn $STRUCTURE_UUID"
+DISPLACEMENTS="0.0,0.0
+0.25,0.75
+0.35,0.25
+0.55,0.15
+0.55,0.60
+0.60,0.80
+0.80,0.30
+0.80,0.60
+"
+for DISPLACEMENT in $DISPLACEMENTS; do
+  DX=$(echo $DISPLACEMENT | awk -F, '{print $1}')
+  DY=$(echo $DISPLACEMENT | awk -F, '{print $2}')
+  $GENSTRUCTURE_CMD  $DRYRUN -dx $DX -dy $DY $PERIODIC_Z $STRUCTURE_CMD
+done
