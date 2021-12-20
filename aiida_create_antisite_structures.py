@@ -94,7 +94,8 @@ def launch(input_group, input_structures,
            structure_group_description,
            dryrun):
     """
-    Script for distoring the cell shape for an input structure
+    Script for generating substitutional and vacancy defects for an input structrure
+    or all structures in an input group.
     """
     if not dryrun:
         structure_group = Group.objects.get_or_create(
