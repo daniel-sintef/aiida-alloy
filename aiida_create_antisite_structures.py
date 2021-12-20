@@ -94,7 +94,7 @@ def launch(input_group, input_structures,
            structure_group_description,
            dryrun):
     """
-    Script for generating substitutional and vacancy defects for an input structrure
+    Script for generating substitutional and vacancy defects for an input structure
     or all structures in an input group.
     """
     if not dryrun:
